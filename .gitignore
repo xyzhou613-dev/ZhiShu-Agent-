@@ -41,6 +41,7 @@ __pycache__/
 
 # 本地密钥(手动添加,勿提交)
 .env.properties
+/bemodel-server/src/main/resources/application-dev.yml
 
 # 旧演示剧场(9/14, 已被真引擎取代, 不进库)
 demo/bemodel-demo*.html

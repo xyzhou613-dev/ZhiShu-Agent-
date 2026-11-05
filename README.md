@@ -190,6 +190,8 @@ Spring Security + JWT 认证，内置 ADMIN / EDITOR / VIEWER 三种角色，路
 
 ## 快速开始
 
+首次运行前，将 `bemodel-server/src/main/resources/application-dev.yml.example` 复制为同目录下的 `application-dev.yml`，并填写本地 MySQL 连接信息或设置对应的 `MYSQL_*` 环境变量。
+
 ### Windows 一键启动
 
 双击项目根目录的 `start.cmd`，脚本检查 Java、Maven、Node.js 和前端包管理器，然后在两个独立窗口启动前后端。前端优先使用 pnpm，未安装时使用 npm。首次运行需要联网下载依赖。

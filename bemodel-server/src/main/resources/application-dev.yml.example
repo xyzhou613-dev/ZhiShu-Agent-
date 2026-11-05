@@ -1,0 +1,36 @@
+# 开发数据库配置；环境变量可覆盖默认值。
+mysql:
+  host: ${MYSQL_HOST:127.0.0.1}
+  port: ${MYSQL_PORT:53778}
+  database: ${MYSQL_DATABASE:bemodel_platform}
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${mysql.host}:${mysql.port}/${mysql.database}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+
+# LLM: set api-key and a model supported by your provider below.
+deepseek:
+  base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+  api-key: ${DEEPSEEK_API_KEY:}
+  model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+  timeout-seconds: 30
+  # F1：输出上限与按调用类型超时（秒）——未列出的 callType 回落全局值；代码内置 MAPPING_SUGGEST=90
+  max-tokens: 4096
+  call-timeouts:
+    MAPPING_SUGGEST: 90
+    LAB_A: 60
+    LAB_B: 60
+  call-max-tokens:
+    LAB_A: 2048
+    LAB_B: 2048
+  # 借鉴 4：主备双端点路由——backup.api-key 空 = 无备路（行为与单提供方时代逐字节一致）。
+  # 启用备路：export DEEPSEEK_BACKUP_BASE_URL=... DEEPSEEK_BACKUP_API_KEY=...（model 空=同主路模型）
+  backup:
+    base-url: ${DEEPSEEK_BACKUP_BASE_URL:}
+    api-key: ${DEEPSEEK_BACKUP_API_KEY:}
+    model: ${DEEPSEEK_BACKUP_MODEL:}
+  # 按 callType 指定主路（"primary"|"backup"）：未列出的 callType 走主路；值非法回落主路
+  call-primary-route: {}
