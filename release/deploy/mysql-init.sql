@@ -1,0 +1,10 @@
+GRANT ALL PRIVILEGES ON `demo_his`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_lis`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_charge`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_pharmacy`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_opd`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_emr`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_pacs`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_nurse`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `demo_material`.* TO 'bemodel'@'%';
+GRANT ALL PRIVILEGES ON `bemodel_lab`.* TO 'bemodel'@'%';

@@ -1,0 +1,30 @@
+mysql:
+  host: ${MYSQL_HOST:mysql}
+  port: ${MYSQL_PORT:3306}
+  database: ${MYSQL_DATABASE:bemodel_platform}
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${mysql.host}:${mysql.port}/${mysql.database}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:bemodel}
+    password: ${MYSQL_PASSWORD}
+
+server:
+  forward-headers-strategy: framework
+
+deepseek:
+  base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+  api-key: ${DEEPSEEK_API_KEY:}
+  model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+  timeout-seconds: 30
+  max-tokens: 4096
+  call-timeouts:
+    MAPPING_SUGGEST: 90
+    LAB_A: 60
+    LAB_B: 60
+  call-max-tokens:
+    LAB_A: 2048
+    LAB_B: 2048
+  backup:
+    api-key: ""

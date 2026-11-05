@@ -1,0 +1,167 @@
+/* ============================================================
+ * BeModel 设计令牌（Design Tokens）
+ * 来源：demo/bemodel-demo.html · 规范：docs/frontend-design-patterns.md §1
+ * 约定：组件/页面一律使用令牌，禁止散落硬编码色值。
+ * ========================================================== */
+:root {
+  /* ---- 品牌主色与语义色（每个语义色成对提供浅底变体） ---- */
+  --primary: #2d8a7e;
+  --primary-light: #e6f4f1;
+  --primary-dark: #1f6b62;
+
+  --accent-blue: #3b82f6;
+  --accent-blue-light: #eff6ff;
+
+  --success: #10b981;
+  --success-light: #ecfdf5;
+
+  --warning: #f59e0b;
+  --warning-light: #fffbeb;
+
+  --danger: #ef4444;
+  --danger-light: #fef2f2;
+
+  --info: #6366f1;
+  --info-light: #eef2ff;
+
+  /* ---- 三级文字 ---- */
+  --text-primary: #1a2332;
+  --text-secondary: #5a6b7d;
+  --text-muted: #94a3b8;
+
+  /* ---- 背景与边框 ---- */
+  --sidebar-bg: #1a2332;
+  --sidebar-hover: #243044;
+  --sidebar-text: #a0b0c5;
+  --sidebar-text-active: #ffffff;
+  --main-bg: #f5f7fa;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+
+  /* ---- 圆角 / 阴影 / 动效 ---- */
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---- 布局常量 ---- */
+  --sidebar-width: 240px;
+  --topbar-height: 60px;
+
+  /* ========================================================
+   * Element Plus 主题覆盖（官方 CSS 变量方式）
+   * ====================================================== */
+  --el-color-primary: #2d8a7e;
+  --el-color-primary-light-3: #6cada5;
+  --el-color-primary-light-5: #96c5bf;
+  --el-color-primary-light-7: #c0dcd8;
+  --el-color-primary-light-8: #d5e8e5;
+  --el-color-primary-light-9: #e6f4f1;
+  --el-color-primary-dark-2: #1f6b62;
+
+  --el-color-success: #10b981;
+  --el-color-success-light-3: #58cea7;
+  --el-color-success-light-5: #88dcc0;
+  --el-color-success-light-7: #b7ead9;
+  --el-color-success-light-8: #cff1e6;
+  --el-color-success-light-9: #ecfdf5;
+  --el-color-success-dark-2: #0d9467;
+
+  --el-color-warning: #f59e0b;
+  --el-color-warning-light-3: #f8bb54;
+  --el-color-warning-light-5: #facf85;
+  --el-color-warning-light-7: #fce2b6;
+  --el-color-warning-light-8: #fdecce;
+  --el-color-warning-light-9: #fffbeb;
+  --el-color-warning-dark-2: #c47e09;
+
+  --el-color-danger: #ef4444;
+  --el-color-danger-light-3: #f47c7c;
+  --el-color-danger-light-5: #f7a2a2;
+  --el-color-danger-light-7: #fac7c7;
+  --el-color-danger-light-8: #fcdada;
+  --el-color-danger-light-9: #fef2f2;
+  --el-color-danger-dark-2: #bf3636;
+
+  --el-color-error: #ef4444;
+  --el-color-error-light-3: #f47c7c;
+  --el-color-error-light-5: #f7a2a2;
+  --el-color-error-light-7: #fac7c7;
+  --el-color-error-light-8: #fcdada;
+  --el-color-error-light-9: #fef2f2;
+  --el-color-error-dark-2: #bf3636;
+
+  --el-color-info: #6366f1;
+  --el-color-info-light-3: #9294f5;
+  --el-color-info-light-5: #b1b3f8;
+  --el-color-info-light-7: #d0d1fb;
+  --el-color-info-light-8: #e0e0fc;
+  --el-color-info-light-9: #eef2ff;
+  --el-color-info-dark-2: #4f52c1;
+
+  --el-text-color-primary: #1a2332;
+  --el-text-color-regular: #5a6b7d;
+  --el-text-color-secondary: #94a3b8;
+  --el-text-color-placeholder: #94a3b8;
+
+  --el-border-color: #e2e8f0;
+  --el-border-color-light: #e2e8f0;
+  --el-border-color-lighter: #ebeef5;
+  --el-border-color-extra-light: #f1f5f9;
+
+  --el-fill-color-light: #f1f5f9;
+  --el-bg-color-page: #f5f7fa;
+
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 16px;
+
+  --el-box-shadow-light: var(--shadow-sm);
+}
+
+/* ============================================================
+ * 全局通用工具类（规范 §2 / §3）
+ * ========================================================== */
+
+/* 页面头部：20px 标题 + 业务语言副标题（各功能页页首使用） */
+.page-header {
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* 系统状态点（绿点 + 呼吸光圈） */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-light);
+}
+
+/* 用户头像（主色渐变底 + 首字符） */
+.bm-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #4db6ac);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
