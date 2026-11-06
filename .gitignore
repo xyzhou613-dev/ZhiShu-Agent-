@@ -45,3 +45,5 @@ __pycache__/
 
 # 旧演示剧场(9/14, 已被真引擎取代, 不进库)
 demo/bemodel-demo*.html
+
+/bemodel-server/src/main/resources/application-compute.yml

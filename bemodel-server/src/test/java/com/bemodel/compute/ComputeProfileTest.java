@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ComputeProfileTest {
     @Test
     void usesItsOwnSchemaWithoutMedicalInitialization() throws Exception {
-        String config = new ClassPathResource("application-compute.yml").getContentAsString(StandardCharsets.UTF_8);
+        String config = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/application-compute.yml.example"), StandardCharsets.UTF_8);
         String migration = new ClassPathResource("db/compute-platform/V1__platform_schema.sql")
                 .getContentAsString(StandardCharsets.UTF_8);
         assertTrue(config.contains("classpath:db/compute-platform"));
