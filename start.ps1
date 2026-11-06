@@ -1,6 +1,8 @@
 param(
     [ValidateSet('All', 'Backend', 'Frontend')]
     [string]$Service = 'All',
+    [ValidateSet('dev', 'compute')]
+    [string]$Profile = 'dev',
     [switch]$CheckOnly
 )
 
@@ -10,6 +12,7 @@ Set-Location -LiteralPath $PSScriptRoot
 try {
     if ($Service -eq 'Backend') {
         Set-Location -LiteralPath (Join-Path $PSScriptRoot 'bemodel-server')
+        $env:SPRING_PROFILES_ACTIVE = $Profile
         & mvn spring-boot:run
         if ($LASTEXITCODE -ne 0) { throw 'Backend exited with an error. See the log above.' }
         exit 0
@@ -53,9 +56,9 @@ try {
     & mvn --version
     if ($LASTEXITCODE -ne 0) { throw 'Maven is unavailable. Check JAVA_HOME and PATH.' }
 
-    $configPath = Join-Path $PSScriptRoot 'bemodel-server/src/main/resources/application-dev.yml'
+    $configPath = Join-Path $PSScriptRoot "bemodel-server/src/main/resources/application-$Profile.yml"
     if (-not (Test-Path -LiteralPath $configPath)) {
-        throw 'Missing bemodel-server/src/main/resources/application-dev.yml.'
+        throw "Missing application-$Profile.yml."
     }
 
     if ($CheckOnly) {
@@ -69,11 +72,11 @@ try {
         }
     }
 
-    # Spring Boot loads the dev profile and its database settings from YAML.
+    # Pass the selected profile to the backend window.
     $scriptPath = '"' + (Join-Path $PSScriptRoot 'start.ps1') + '"'
     foreach ($part in @('Backend', 'Frontend')) {
         Start-Process -FilePath 'powershell.exe' -WindowStyle Normal -WorkingDirectory $PSScriptRoot `
-            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath, '-Service', $part)
+            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath, '-Service', $part, '-Profile', $Profile)
     }
     Write-Host 'Backend and frontend are starting in separate windows.'
     Write-Host 'Open http://127.0.0.1:5173 after both services finish starting.'

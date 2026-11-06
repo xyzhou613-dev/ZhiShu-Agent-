@@ -12,6 +12,8 @@
 
 ## 启动
 
+Windows 下可双击项目根目录的 `start-compute.cmd`，它会用 `compute` 配置打开后端和前端窗口。执行 `start-compute.cmd -CheckOnly` 可只检查本地启动工具和配置文件。数据库连接使用 Spring 解析后的算力配置，两套库共用同一 MySQL 地址和账号。
+
 在隔离的 MySQL 8 测试实例准备 `bemodel_compute_platform` 和 `a800_compute` 两个空库。应用账号需要在这两个库执行 Flyway 迁移和查询。算力 profile 使用独立配置项。
 
 ```powershell
