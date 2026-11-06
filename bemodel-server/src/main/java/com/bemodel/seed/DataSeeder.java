@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ import java.util.*;
  * 幂等：患者数 ≥40 且发药记录非空则跳过；否则清空四个产品库重新生成（确定性，可重复）。
  */
 @Slf4j
+@Profile("!compute")
 @Component
 @RequiredArgsConstructor
 public class DataSeeder implements ApplicationRunner {
