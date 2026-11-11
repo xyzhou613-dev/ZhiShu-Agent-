@@ -205,6 +205,38 @@ class ComputeMysqlSmokeTest {
     }
 
     @Test
+    void capturesEvidenceAndRunsServerAdmissionOverHttp() {
+        var headers = adminHeaders();
+        var previousRules = databases.platform().queryForList("SELECT id,status FROM bm_rule");
+        try {
+            databases.platform().update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            ok(post("/api/release/publish", Map.of("changeSummary", "server evidence test", "force", true), headers));
+            String path = "/api/compute/evidence-snapshots";
+            var request = Map.of("nodeKey", "a800-demo", "requestId", 1);
+            var created = ok(post(path, request, headers));
+            long id = created.path("snapshot").path("id").asLong();
+            assertTrue(created.path("snapshot").path("sealed").asBoolean());
+            assertFalse(created.path("authorizesExecution").asBoolean(true));
+            assertEquals(created, ok(get(path + "/" + id, headers)));
+            assertTrue(ok(get(path + "?pageSize=1", headers)).path("total").asLong() >= 1);
+            var run = ok(post("/api/compute/rule-evaluations", Map.of("stage", "ADMISSION", "nodeKey", "a800-demo", "requestId", 1), headers));
+            assertEquals("SERVER_SNAPSHOT", run.path("run").path("inputSource").asText());
+            assertEquals(run.path("run").path("asOf"), run.path("run").path("evaluatedAt"));
+            assertTrue(run.path("run").path("snapshotId").asLong() > id);
+            assertFalse(run.path("checks").get(0).path("evidenceIds").isEmpty());
+            assertEquals("QUEUE_STALE_EVIDENCE", run.path("checks").get(1).path("reasonCode").asText());
+            assertEquals(run, ok(get("/api/compute/rule-evaluations/" + run.path("run").path("id").asLong(), headers)));
+            assertTrue(error(post(path, Map.of("nodeKey", "a800-demo", "requestId", 1, "asOf", "2026-11-06T10:00:10Z"), headers)).contains("服务端"));
+            assertEquals("证据快照不存在", error(get(path + "/" + Long.MAX_VALUE, headers)));
+            assertEquals(403, http.exchange(path, HttpMethod.GET, new HttpEntity<>(headersForRole("VIEWER")), JsonNode.class).getStatusCode().value());
+            assertEquals(403, http.exchange(path, HttpMethod.POST, new HttpEntity<>(request, headersForRole("VIEWER")), JsonNode.class).getStatusCode().value());
+            assertEquals(0, get(path, headersForRole("EDITOR")).path("code").asInt(-1));
+        } finally {
+            for (var rule : previousRules) databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?", rule.get("status"), rule.get("id"));
+        }
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 

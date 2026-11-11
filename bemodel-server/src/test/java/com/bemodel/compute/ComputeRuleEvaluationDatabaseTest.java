@@ -16,7 +16,8 @@ class ComputeRuleEvaluationDatabaseTest {
 
     private ComputeRuleEvaluationService service(ComputeMysqlTestDatabase db, ComputeReleaseBridge bridge) {
         var runner = new ComputeRuleRunner(bridge, new ComputeRuleService(null, JSON), JSON);
-        return new ComputeRuleEvaluationService(new ComputeDatabase.Store(db.business(), null), runner, JSON);
+        var store = new ComputeDatabase.Store(db.business(), null);
+        return new ComputeRuleEvaluationService(store, runner, JSON, new ComputeEvidenceService(store, runner, JSON));
     }
 
     private ObjectNode request(String stage) {

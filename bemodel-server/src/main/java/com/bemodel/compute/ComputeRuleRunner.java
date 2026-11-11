@@ -155,7 +155,7 @@ final class ComputeRuleRunner {
         return codes;
     }
 
-    private static Status summarize(List<Check> checks) {
+    static Status summarize(List<Check> checks) {
         if (checks.stream().anyMatch(check -> check.result() == Status.ERROR)) return Status.ERROR;
         if (checks.stream().anyMatch(check -> check.result() == Status.FAIL)) return Status.FAIL;
         if (checks.stream().anyMatch(check -> check.result() == Status.PASS)) return Status.PASS;
