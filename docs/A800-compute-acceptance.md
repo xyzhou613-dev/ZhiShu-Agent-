@@ -1,6 +1,6 @@
 # A800 算力版任务清单与人工验收
 
-基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库通过 V5 增加规则运行主记录和明细。
+基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库通过 V5 增加规则运行记录，通过 V6/V7 增加证据快照保护和运行证据关联。
 
 ## 任务清单
 
@@ -11,6 +11,7 @@
 - [x] M-01：18 类对象、138 项关键属性和 30 条标准关系，附来源、状态、基数和未落库说明。
 - [x] M-02：14 条草稿规则、固定处理函数、版本检查、流程对应关系与只读演练，详见 `docs/A800-compute-m02.md`。
 - [x] N-02：固定生效快照执行六阶段规则，保存独立运行记录和逐条结果，提供执行、分页和详情接口。
+- [x] N-03：保存服务端证据快照，冻结来源、时间及关键值，接通服务端准入检查及逐条证据引用；正式申请决策后续接入。
 - [ ] 人工在浏览器逐项核对建模页面；自动数据库与 HTTP 验证见文末命令。
 
 ## 启动
@@ -18,6 +19,8 @@
 申请提交、查询、取消和失败作业重试的调用示例见 [N-01 算力申请接口](A800-compute-request-api.md)。
 
 读取生效快照、执行阶段规则和查询运行记录的示例见 [N-02 生效规则运行接口](A800-compute-rule-evaluation-api.md)。
+
+服务端采集证据、查询快照和执行准入检查见 [N-03 证据快照接口](A800-compute-evidence-api.md)。
 
 首次检出后，将 `bemodel-server/src/main/resources/application-compute.yml.example` 复制为同目录下的 `application-compute.yml`。实际配置由 Git 忽略。
 
@@ -42,7 +45,7 @@ $env:APP_SECRET_KEY = '<数据源凭证加密密钥>'
 
 ## 人工验收
 
-1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V5，应有 34 张业务表。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`。
+1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V7，应有 35 张业务表。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`；N-03 复用证据表并新增 `rule_evaluation_check_evidence`。
 2. 本体管理应出现「算力管理」域，含 18 类概念。参照 `docs/A800-compute-ontology-checklist.md` 核对 138 项属性和 30 条标准关系；含用户自建关系的库允许多于 30 条。打开数据源与映射页面，确认 `A800_COMPUTE` 可见，`COMPUTE_GPU_DEVICE.UUID` 对应 `gpu_device.gpu_uuid`。
 3. 调用已登录的查询。固定样例观测时间为 `2026-11-06T10:00:00Z`，有效 30 秒。接口以当前账本为准，`evidenceAsOf` 只控制读取和校验哪一时点的观测。
 
@@ -100,3 +103,15 @@ mvn '-Dtest=ComputeOntologyMigrationTest,ComputeMysqlSmokeTest,ComputeProfileTes
 MySQL 8.4 随机隔离库验证了业务库 V5、再次迁移无变化、六阶段 14 条规则、快照参数与版本固定、新发布后旧记录保留、跨集合外键保护，以及明细写入失败时主记录和此前明细一起回滚。HTTP 验证了执行、分页、详情、输入限制和角色权限，并回归申请提交、取消、并发提交和失败作业重试。JSON 示例、PowerShell 语法、阶段清单及文档链接已检查。
 
 本次未迁移现有应用库，未在共享库发布或激活演示规则。事实来源为调用方，运行记录的 `authorizesExecution=false`；正式申请决策和服务端证据采集待后续接入。
+
+## N-03 验证记录（2026-11-11）
+
+按确认范围完成服务端证据快照和准入运行。主回归 43 项，另有快照数据库 1 项和空库迁移 1 项，共 45 项定向用例最终通过，无跳过。初次准入数据库用例因远程数据库时钟与应用时钟不一致而失败，改用应用时钟构造隔离观测后单独重跑通过；统计依据为各用例最终报告，不将先前失败批次记为整批成功。
+
+`ComputeEvidenceDatabaseTest` 验证 V5→V6、缺失及过期观测、采集失败、来源不符、GPU 身份错误、字段类型错误、观测字段投影、历史值不覆盖、封存后禁止修改及追加、部分写入整体回滚和再次迁移无变化。固定历史时间只在测试内部使用，接口不接受调用方 asOf。
+
+`ComputeEvidenceAdmissionTest` 与 `ComputeEvidenceEvaluationDatabaseTest` 验证 V6→V7 保留旧 CALLER 记录、从服务端快照生成事实、同一运行固定 asOf 和规则集合、正常通过与证据不合格、逐条引用、跨快照外键保护、新发布后旧结果不变，以及引用写入失败时快照、运行和引用一起回滚。申请状态与正式决策表保持原有状态。
+
+`ComputeMysqlSmokeTest` 的 12 项覆盖实际 HTTP 快照采集、分页、详情、权限、时间注入拒绝和服务端准入，也回归发布、原有六阶段调用方运行、申请、取消、并发提交及失败作业重试。另运行规则判定、规则运行、规则定义、profile、数据库配置和卡组查询测试；`ComputeOntologyMigrationTest#initializesConceptsAndAttributesFromAnEmptySchema` 验证空库最新迁移、35 张业务表、原四组八卡及再次迁移无变化。
+
+测试使用 MySQL 8.4 随机临时库，未迁移现有应用库、未刷新共享观测、未发布共享规则。新增接口及文档中的 JSON、PowerShell、路径、错误信息和链接已核对。正式申请决策、其他阶段的服务端事实生成、真实采集和调度执行仍待后续接入。

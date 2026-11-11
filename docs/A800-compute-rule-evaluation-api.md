@@ -1,6 +1,6 @@
 # N-02 生效规则运行接口
 
-以 `compute` profile 启动后端，业务库迁移到 V5。以下三个接口允许 `ADMIN` 和 `EDITOR` 调用。
+以 `compute` profile 启动后端，业务库迁移到当前最新版本（N-02 初始为 V5，N-03 后为 V7）。以下三个接口允许 `ADMIN` 和 `EDITOR` 调用。
 
 | 方法与路径 | 功能 |
 |---|---|
@@ -8,7 +8,9 @@
 | `GET /api/compute/rule-evaluations` | 分页查询运行摘要 |
 | `GET /api/compute/rule-evaluations/{id}` | 查询输入、来源版本和逐条结果 |
 
-事实由调用方提供，记录的 `inputSource` 为 `CALLER`，`authorizesExecution` 为 `false`。这些记录用于查看规则计算结果。申请的正式决策和服务端证据由后续流程接入。
+本页模式的事实由调用方提供，记录的 `inputSource` 为 `CALLER`，`authorizesExecution` 为 `false`。这些记录用于查看规则计算结果。申请的正式决策由后续流程接入。
+
+本页描述 `stage + facts` 模式。N-03 已新增服务端采集证据的准入模式，见 [证据快照与服务端准入接口](A800-compute-evidence-api.md)。CALLER 模式行为保留；新增的 `run.snapshotId`、`run.asOf`、`data.evidenceSnapshot` 为空，`checks[].evidenceIds` 为空列表。正式申请决策仍未接入。
 
 ## 登录
 
@@ -138,7 +140,9 @@ Invoke-RestMethod -Method Post -Uri $runsUrl -Headers $headers -ContentType 'app
       "evaluatedAt": "2026-11-11T03:00:00Z",
       "inputSource": "CALLER",
       "overallResult": "PASS",
-      "authorizesExecution": false
+      "authorizesExecution": false,
+      "snapshotId": null,
+      "asOf": null
     },
     "facts": {
       "R-01": {
@@ -171,7 +175,8 @@ Invoke-RestMethod -Method Post -Uri $runsUrl -Headers $headers -ContentType 'app
         "reasonCode": "PASS",
         "output": {
           "gpuCount": 1
-        }
+        },
+        "evidenceIds": []
       },
       {
         "ruleVersionId": 10,
@@ -183,9 +188,11 @@ Invoke-RestMethod -Method Post -Uri $runsUrl -Headers $headers -ContentType 'app
         "output": {
           "asOf": "2026-11-06T10:00:10Z",
           "maxAgeSeconds": 30
-        }
+        },
+        "evidenceIds": []
       }
-    ]
+    ],
+    "evidenceSnapshot": null
   }
 }
 ```
