@@ -64,6 +64,8 @@ class ComputeReleaseBridgeTest {
                 catch(Exception e){throw new RuntimeException(e);}
             });
             assertEquals(0,db.business().queryForObject("SELECT COUNT(*) FROM rule_activation",Integer.class));
+            assertEquals(0,db.platform().queryForObject("SELECT COUNT(*) FROM bm_release",Integer.class));
+            assertEquals(0,db.platform().queryForObject("SELECT COUNT(*) FROM bm_compute_release_sync",Integer.class));
             long first=publish(db,b,oldConfig,"v1.0");
             long stale=publish(db,b,oldConfig,"v1.1");
             assertEquals("FAILED",b.sync(stale).get("status"));

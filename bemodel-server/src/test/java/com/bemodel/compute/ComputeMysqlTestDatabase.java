@@ -9,13 +9,15 @@ import java.sql.DriverManager;
 import java.util.UUID;
 
 /** Creates its own databases; the database in the supplied URL is never migrated or dropped. */
-record ComputeMysqlTestDatabase(String platformUrl, String businessUrl, String platformName, String businessName)
+record ComputeMysqlTestDatabase(String platformUrl, String businessUrl, String platformName, String businessName,
+                                JdbcTemplate platformJdbc, JdbcTemplate businessJdbc)
         implements AutoCloseable {
     static ComputeMysqlTestDatabase create() throws Exception {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String platform = "m01_test_platform_" + suffix;
         String business = "m01_test_business_" + suffix;
-        var databases = new ComputeMysqlTestDatabase(schemaUrl(platform), schemaUrl(business), platform, business);
+        var databases = new ComputeMysqlTestDatabase(schemaUrl(platform), schemaUrl(business), platform, business,
+                jdbc(schemaUrl(platform)),jdbc(schemaUrl(business)));
         try (var connection = DriverManager.getConnection(serverUrl(), username(), password());
              var statement = connection.createStatement()) {
             if (!connection.getMetaData().getDatabaseProductName().equals("MySQL")
@@ -36,11 +38,11 @@ record ComputeMysqlTestDatabase(String platformUrl, String businessUrl, String p
     }
 
     JdbcTemplate platform() {
-        return jdbc(platformUrl);
+        return platformJdbc;
     }
 
     JdbcTemplate business() {
-        return jdbc(businessUrl);
+        return businessJdbc;
     }
 
     @Override

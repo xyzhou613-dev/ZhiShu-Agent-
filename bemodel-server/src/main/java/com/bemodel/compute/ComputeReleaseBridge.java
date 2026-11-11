@@ -64,6 +64,7 @@ public class ComputeReleaseBridge {
         config.put("formulaVersion",ComputeVersions.FORMULAS);
         config.put("ownerEmployeeId",ownerId); config.put("nodeKey",nodeKey); config.put("groups",groups);
         config.put("trainingPriority",training.getFirst().get("priority")); config.put("residentPriority",1);
+        config.put("dataAssets",platform.queryForList("SELECT asset_code,version,owner,source_kind,authoritative_source,max_age_seconds,sensitivity FROM bm_compute_data_asset ORDER BY asset_code"));
         Long active=j.queryForObject("SELECT rule_set_id FROM active_rule_set WHERE id=1",Long.class);
         config.put("expectedActiveSetId",active==null?0L:active);
         config.put("rules",checked);

@@ -141,6 +141,20 @@ class ComputeMysqlSmokeTest {
     }
 
     @Test
+    void dataContractsShowSourcesAndKeepSensitiveFieldsOutOfAgentContract() {
+        var headers=adminHeaders();
+        JsonNode assets=get("/api/compute/data-assets",headers);
+        assertEquals(10,assets.path("data").size(),assets.toString());
+        JsonNode contract=get("/api/compute/data-contract",headers).path("data");
+        assertEquals(6,contract.path("requiredFields").size());
+        assertFalse(contract.path("ingestionEnabled").asBoolean(true));
+        for(var asset:contract.path("assets")) {
+            assertNotEquals("SENSITIVE",asset.path("sensitivity").asText());
+            for(var field:asset.path("fields")) assertNotEquals("SENSITIVE",field.path("sensitivity").asText());
+        }
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 
