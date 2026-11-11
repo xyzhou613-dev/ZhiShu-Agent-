@@ -117,19 +117,22 @@ final class ComputeRequestService {
 
     Request cancel(long id) {
         JdbcTemplate jdbc = store.jdbc();
+        Long queuedNode=jdbc.query("SELECT node_id FROM compute_queue WHERE request_id=?",r->r.next()?r.getObject(1,Long.class):null,id);
         return transaction(jdbc).execute(status -> {
+            if(queuedNode!=null)ComputeSchedulingLocks.node(jdbc,queuedNode);
             Request request = requireRequest(jdbc, id, true);
             if ("CANCELLED".equals(request.status())) {
                 return request;
             }
             if (!"SUBMITTED".equals(request.status()) || Boolean.TRUE.equals(jdbc.queryForObject("""
-                    SELECT EXISTS(SELECT 1 FROM compute_queue WHERE request_id = ?)
+                    SELECT EXISTS(SELECT 1 FROM compute_queue WHERE request_id = ? AND (node_id IS NULL OR status NOT IN ('WAITING','CANCELLED')))
                         OR EXISTS(SELECT 1 FROM compute_job WHERE request_id = ?)
                         OR EXISTS(SELECT 1 FROM workflow_run WHERE request_id = ?)
                     """, Boolean.class, id, id, id))) {
                 throw new BizException("仅可取消尚未进入调度的已提交申请");
             }
             jdbc.update("UPDATE compute_request SET status = 'CANCELLED' WHERE id = ?", id);
+            jdbc.update("UPDATE compute_queue SET status='CANCELLED',reason_code='USER_CANCELLED',next_evaluate_at=NULL,updated_at=? WHERE request_id=? AND status='WAITING'",LocalDateTime.ofInstant(Instant.now(),ZoneOffset.UTC),id);
             return requireRequest(jdbc, id, false);
         });
     }

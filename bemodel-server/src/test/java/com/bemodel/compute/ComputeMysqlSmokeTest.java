@@ -71,6 +71,7 @@ class ComputeMysqlSmokeTest {
         properties.add("bemodel.inspect.cron", () -> "-");
         properties.add("bemodel.reconcile.cron", () -> "-");
         properties.add("bemodel.proposal.cron", () -> "-");
+        properties.add("compute.queue.recheck-enabled", () -> "false");
     }
 
     @BeforeEach
@@ -305,6 +306,26 @@ class ComputeMysqlSmokeTest {
             assertEquals(0,get(path,headersForRole("EDITOR")).path("code").asInt(-1));
             assertEquals(77309411328L,ok(get("/api/compute/capacity?nodeKey=a800-demo&jobId=1&pausedDeploymentId=2",headers)).path("projectedBytes").path("memoryBytes").asLong());
         }finally{for(var row:previous)databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?",row.get("status"),row.get("id"));}
+    }
+
+    @Test void queuesAndCancelsRequestsOverHttp(){
+        var headers=adminHeaders();var previous=databases.platform().queryForList("SELECT id,status FROM bm_rule");
+        try{
+            databases.platform().update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            ok(post("/api/release/publish",Map.of("changeSummary","queue test","force",true),headers));
+            var submitted=requestBody(UUID.randomUUID().toString());submitted.put("requestedGpuCount",2);
+            long id=ok(post("/api/compute/requests",submitted,headers)).path("id").asLong();
+            var entry=ok(post("/api/compute/queue",Map.of("nodeKey","a800-demo","requestId",id),headers));
+            assertEquals("B",entry.path("targetGroupCode").asText());assertEquals("WAITING",entry.path("status").asText());
+            assertTrue(entry.path("head").asBoolean());
+            assertEquals(entry,ok(get("/api/compute/queue/"+id,headers)));
+            assertTrue(ok(get("/api/compute/queue?pageSize=1",headers)).path("total").asLong()>=1);
+            ok(post("/api/compute/queue/reevaluate",Map.of("nodeKey","a800-demo"),headers));
+            assertEquals("CANCELLED",ok(post("/api/compute/requests/"+id+"/cancel",Map.of(),headers)).path("status").asText());
+            assertEquals("CANCELLED",ok(get("/api/compute/queue/"+id,headers)).path("status").asText());
+            assertEquals(403,http.exchange("/api/compute/queue",HttpMethod.GET,new HttpEntity<>(headersForRole("VIEWER")),JsonNode.class).getStatusCode().value());
+            assertEquals(0,get("/api/compute/queue",headersForRole("EDITOR")).path("code").asInt(-1));
+        }finally{for(var r:previous)databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?",r.get("status"),r.get("id"));}
     }
 
     @Test

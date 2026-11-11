@@ -26,7 +26,7 @@ class ComputeTargetSelectionDatabaseTest {
     @Test void upgradesPersistsServerSelectionsAndKeepsVersionsAndTransactionsIsolated()throws Exception {
         try(var db=ComputeMysqlTestDatabase.create("7")) {
             var migration=Flyway.configure().dataSource(db.businessUrl(),ComputeMysqlTestDatabase.username(),ComputeMysqlTestDatabase.password())
-                    .locations("classpath:db/a800-compute").load();
+                    .locations("classpath:db/a800-compute").target("8").load();
             assertEquals(1,migration.migrate().migrationsExecuted);
             var bridge=bridge(db);var j=db.business();var store=new ComputeDatabase.Store(j,null);
             var runner=new ComputeRuleRunner(bridge,new ComputeRuleService(null,JSON),JSON);

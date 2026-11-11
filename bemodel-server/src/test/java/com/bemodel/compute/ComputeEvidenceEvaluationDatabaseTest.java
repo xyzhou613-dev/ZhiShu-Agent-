@@ -27,7 +27,7 @@ class ComputeEvidenceEvaluationDatabaseTest {
                     JOIN active_rule_set a ON a.rule_set_id=m.rule_set_id WHERE v.stage='ADMISSION'
                     """, legacyId);
             var migration = Flyway.configure().dataSource(db.businessUrl(), ComputeMysqlTestDatabase.username(),
-                    ComputeMysqlTestDatabase.password()).locations("classpath:db/a800-compute").load();
+                    ComputeMysqlTestDatabase.password()).locations("classpath:db/a800-compute").target("7").load();
             assertEquals(1, migration.migrate().migrationsExecuted);
             var store = new ComputeDatabase.Store(j, null);
             var runner = new ComputeRuleRunner(bridge, new ComputeRuleService(null, JSON), JSON);
