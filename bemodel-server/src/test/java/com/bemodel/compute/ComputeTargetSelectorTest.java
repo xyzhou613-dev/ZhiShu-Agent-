@@ -99,4 +99,15 @@ class ComputeTargetSelectorTest {
         var changed=e; assertThrows(BizException.class,()->choose(changed));
         e=fixture(0); var invalid=e; assertThrows(BizException.class,()->choose(invalid));
     }
+
+    @Test void aFaultyUnusedCardDoesNotPreventAThreeCardTarget() {
+        var e=fixture(3);
+        ((ObjectNode)observations.get(3).values()).put("healthy",false);
+        var selected=choose(e);
+        assertEquals("A",selected.targetGroupCode());
+        assertEquals("TARGET_SELECTED",selected.selectionStatus());
+        ((ObjectNode)observations.get(2).values()).put("healthy",false);
+        assertEquals("WAITING",choose(e).selectionStatus());
+        assertEquals("A",choose(e).targetGroupCode());
+    }
 }

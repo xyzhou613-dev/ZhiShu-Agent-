@@ -33,7 +33,7 @@ final class ComputeTargetSelector {
         var facts = json.createObjectNode().put("gpuCount", gpuCount);
         GroupState flex = null;
         if (gpuCount == 1) {
-            flex = state("FLEX", ledger, captured);
+            flex = state("FLEX", ledger, captured, 1);
             facts.putObject("flex").put("healthy", flex.healthy()).put("evidenceFresh", flex.evidenceFresh() && flex.consistent())
                     .put("held", flex.held()).put("reserved", flex.reserved()).put("occupied", flex.occupied());
         }
@@ -41,7 +41,7 @@ final class ComputeTargetSelector {
                 .orElseThrow(() -> new BizException("生效集合缺少 R-04"));
         var result = new ComputeRuleEvaluator().evaluateSnapshot("R-04", rule.ruleVersion(), rule.definition(), facts);
         String code = Objects.toString(result.output().get("targetGroup"), null);
-        GroupState target = code == null ? null : state(code, ledger, captured);
+        GroupState target = code == null ? null : state(code, ledger, captured, gpuCount);
         String status;
         if (target == null) status = "WAITING";
         else if (!target.consistent() || target.reserved() || !target.evidenceFresh() || !target.healthy()) status = "WAITING";
@@ -81,7 +81,7 @@ final class ComputeTargetSelector {
         }
     }
 
-    private GroupState state(String code, JsonNode ledger, ComputeEvidenceService.Detail captured) {
+    private GroupState state(String code, JsonNode ledger, ComputeEvidenceService.Detail captured, long requiredCards) {
         JsonNode group = find(ledger.path("groups"), "group_code", code);
         if (group == null) throw new BizException("快照缺少目标卡组");
         long id = group.path("id").longValue();
@@ -96,21 +96,23 @@ final class ComputeTargetSelector {
         boolean held = !holds.isEmpty() || group.hasNonNull("current_hold_id")
                 || allocations.stream().anyMatch(a -> "OCCUPIED".equals(a.path("status").asText()));
         boolean reserved = !pending.isEmpty() || group.hasNonNull("pending_allocation_id");
-        boolean fresh = true, healthy = true, occupied = false;
+        boolean fresh = true, occupied = false;
+        long healthyCards = 0;
         var refs = new ArrayList<Long>();
         for (JsonNode card : list(ledger.path("cards"))) if (card.path("group_id").asLong() == id) {
             var observation = captured.evidence().stream().filter(e -> e.observationId() != null
                     && "GPU".equals(e.values().path("subjectKind").asText())
                     && e.values().path("subjectId").asLong() == card.path("id").asLong()).findFirst();
-            if (observation.isEmpty()) { fresh = false; healthy = false; continue; }
+            if (observation.isEmpty()) { fresh = false; continue; }
             var e = observation.get(); refs.add(e.id());
             boolean usable = e.values().path("usable").asBoolean(false)
                     && e.values().path("healthy").isBoolean() && e.values().path("occupied").isBoolean()
                     && ComputeResourceMath.evidenceValid(e.observedAt(), e.validUntil(), captured.snapshot().asOf(), e.values().path("maxAgeSeconds").asLong());
             fresh &= usable;
-            healthy &= usable && e.values().path("healthy").booleanValue();
+            if (usable && e.values().path("healthy").booleanValue()) healthyCards++;
             occupied |= usable && e.values().path("occupied").booleanValue();
         }
+        boolean healthy = healthyCards >= requiredCards;
         var blockers = new ArrayList<String>();
         if (!consistent) blockers.add("GROUP_LEDGER_MISMATCH");
         if (held) blockers.add("GROUP_HELD");

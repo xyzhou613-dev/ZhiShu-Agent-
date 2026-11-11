@@ -60,6 +60,9 @@ class ComputeMysqlSmokeTest {
         properties.add("spring.datasource.url", databases::platformUrl);
         properties.add("spring.datasource.username", ComputeMysqlTestDatabase::username);
         properties.add("spring.datasource.password", ComputeMysqlTestDatabase::password);
+        properties.add("compute.datasource.jdbc-url", databases::businessUrl);
+        properties.add("compute.datasource.username", ComputeMysqlTestDatabase::username);
+        properties.add("compute.datasource.password", ComputeMysqlTestDatabase::password);
         properties.add("spring.flyway.locations", () -> "classpath:db/compute-platform");
         properties.add("spring.config.import", () -> "");
         properties.add("COMPUTE_ADMIN_PASSWORD", () -> ADMIN_PASSWORD);
@@ -76,6 +79,8 @@ class ComputeMysqlSmokeTest {
         var endpoint = new ComputeDatabase.Endpoint(uri.getHost(), uri.getPort(), databases.businessUrl());
         when(store.jdbc()).thenReturn(databases.business());
         when(store.endpoint()).thenReturn(endpoint);
+        var isolatedStore = new ComputeDatabase.Store(databases.business(), endpoint);
+        when(store.transactions()).thenAnswer(ignored -> isolatedStore.transactions());
         if (datasources.getByCode("A800_COMPUTE") == null) {
             var source = new Datasource();
             source.setDsCode("A800_COMPUTE");
@@ -233,6 +238,47 @@ class ComputeMysqlSmokeTest {
             assertEquals(0, get(path, headersForRole("EDITOR")).path("code").asInt(-1));
         } finally {
             for (var rule : previousRules) databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?", rule.get("status"), rule.get("id"));
+        }
+    }
+
+    @Test
+    void selectsTargetsFromServerSnapshotsAndServesHistoryOverHttp() throws Exception {
+        var headers=adminHeaders();
+        var previousRules=databases.platform().queryForList("SELECT id,status FROM bm_rule");
+        try {
+            databases.platform().update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            ok(post("/api/release/publish",Map.of("changeSummary","target selection test","force",true),headers));
+            String path="/api/compute/target-selections";
+            var body=Map.of("nodeKey","a800-demo","requestId",1);
+            var result=ok(post(path,body,headers));
+            var selection=result.path("selection");
+            assertEquals("B",selection.path("targetGroupCode").asText());
+            assertEquals("JOB",selection.path("specBasis").asText());
+            assertEquals(2,selection.path("gpuCount").asInt());
+            assertEquals("WAITING",selection.path("selectionStatus").asText());
+            assertEquals("admin",selection.path("actor").asText());
+            assertFalse(selection.path("queuePersisted").asBoolean(true));
+            assertFalse(selection.path("authorizesExecution").asBoolean(true));
+            long id=selection.path("id").asLong();
+            assertEquals(result,ok(get(path+"/"+id,headers)));
+            var page=ok(get(path+"?requestId=1&pageNum=1&pageSize=1",headers));
+            assertTrue(page.path("total").asLong()>=1);
+            assertEquals(id,page.path("list").get(0).path("id").asLong());
+            assertFalse(result.path("evidenceIds").isEmpty());
+            assertEquals(selection.path("snapshotId"),result.path("evidenceSnapshot").path("snapshot").path("id"));
+            assertTrue(error(post(path,Map.of("nodeKey","a800-demo","requestId",1,"gpuCount",4),headers)).contains("服务端"));
+            assertTrue(error(post(path,Map.of("nodeKey","a800-demo","requestId",1,"asOf","2026-11-06T10:00:10Z"),headers)).contains("服务端"));
+            assertEquals("目标组选择记录不存在",error(get(path+"/"+Long.MAX_VALUE,headers)));
+            assertEquals("requestId 必须是正整数",error(get(path+"?requestId=0",headers)));
+            for(String role:List.of("VIEWER","REVIEWER"))assertEquals(403,http.exchange(path,HttpMethod.GET,new HttpEntity<>(headersForRole(role)),JsonNode.class).getStatusCode().value());
+            assertEquals(403,http.exchange(path,HttpMethod.POST,new HttpEntity<>(body,headersForRole("VIEWER")),JsonNode.class).getStatusCode().value());
+            assertEquals(0,get(path,headersForRole("EDITOR")).path("code").asInt(-1));
+            try(var client=java.net.http.HttpClient.newHttpClient()) {
+                var anonymous=java.net.http.HttpRequest.newBuilder(URI.create(http.getRootUri()+path)).GET().build();
+                assertEquals(401,client.send(anonymous,java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode());
+            }
+        }finally{
+            for(var rule:previousRules)databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?",rule.get("status"),rule.get("id"));
         }
     }
 
