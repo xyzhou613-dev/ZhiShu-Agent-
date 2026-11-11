@@ -44,6 +44,7 @@ final class ComputeQueueService {
             if(!List.of("SUBMITTED","APPROVED").contains(request.getFirst().get("status")))throw new BizException("仅已提交或已批准的待调度申请可入队");
             if(j.queryForObject("SELECT COUNT(*) FROM gpu_allocation a JOIN compute_job b ON b.id=a.job_id WHERE b.request_id=? AND a.status IN ('PENDING','OCCUPIED')",Integer.class,id)>0)
                 throw new BizException("申请已有有效分配，不重复入队");
+            if(!pendingJobPossible(id))throw new BizException("当前作业不可重新分配，请先完成失败作业重试");
             var old=j.queryForList("SELECT node_id FROM compute_queue WHERE request_id=? FOR UPDATE",id);
             if(!old.isEmpty()&&old.getFirst().get("node_id")!=null&&((Number)old.getFirst().get("node_id")).longValue()!=nodeId)throw new BizException("申请已绑定其他节点队列");
             refresh(body,nodeId);return detail(id);
@@ -67,9 +68,15 @@ final class ComputeQueueService {
             if(j.queryForObject("SELECT COUNT(*) FROM gpu_allocation a JOIN compute_job b ON b.id=a.job_id WHERE b.request_id=? AND a.status IN ('PENDING','OCCUPIED')",Integer.class,id)>0){
                 j.update("UPDATE compute_queue SET status='RESERVED',reason_code='ALREADY_RESERVED',next_evaluate_at=NULL WHERE request_id=?",id);continue;
             }
+            if(!pendingJobPossible(id)){j.update("UPDATE compute_queue SET status='CANCELLED',reason_code='NEEDS_PENDING_JOB',next_evaluate_at=NULL WHERE request_id=?",id);continue;}
             refresh(json.createObjectNode().put("nodeKey",nodeKey).put("requestId",id),nodeId);
         }
         return ids.stream().map(this::detail).toList();
+    }
+    private boolean pendingJobPossible(long request){
+        var j=store.jdbc();var jobs=j.queryForList("SELECT b.id,b.status FROM active_job a JOIN compute_job b ON b.id=a.job_id WHERE a.request_id=? FOR UPDATE",request);
+        if(jobs.isEmpty())return j.queryForObject("SELECT COUNT(*) FROM compute_job WHERE request_id=?",Integer.class,request)==0;
+        var job=jobs.getFirst();return "PENDING".equals(job.get("status"))&&j.queryForObject("SELECT COUNT(*) FROM gpu_allocation WHERE job_id=?",Integer.class,job.get("id"))==0;
     }
     private void refresh(JsonNode body,long nodeId){
         var selected=targets.select(body);var s=selected.selection();var j=store.jdbc();

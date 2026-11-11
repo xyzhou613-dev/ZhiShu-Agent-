@@ -328,6 +328,49 @@ class ComputeMysqlSmokeTest {
         }finally{for(var r:previous)databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?",r.get("status"),r.get("id"));}
     }
 
+    @Test void reservesOnceAndReturnsAuditedPendingReceiptsOverHttp(){
+        var headers=adminHeaders();var p=databases.platform();var j=databases.business();
+        var oldRules=p.queryForList("SELECT id,status,expr_json,version FROM bm_rule");
+        var oldAssets=p.queryForList("SELECT asset_code,max_age_seconds,version FROM bm_compute_data_asset");
+        var oldObservations=j.queryForList("SELECT id,observed_at,valid_until FROM resource_observation");
+        Long allocated=null;
+        try{
+            var r11=p.queryForMap("SELECT id,expr_json FROM bm_rule WHERE rule_code='R-11'");
+            var definition=(com.fasterxml.jackson.databind.node.ObjectNode)ComputeRuleEvaluatorTest.JSON.readTree(r11.get("expr_json").toString());
+            definition.withObject("/parameters").put("maxAgeSeconds",120);
+            p.update("UPDATE bm_rule SET expr_json=?,version=version+1 WHERE id=?",definition.toString(),r11.get("id"));
+            p.update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            p.update("UPDATE bm_compute_data_asset SET max_age_seconds=120,version=version+1 WHERE asset_code IN ('GPU_OBSERVATION','NODE_WATERMARK')");
+            ok(post("/api/release/publish",Map.of("changeSummary","reservation test","force",true),headers));
+            ComputeEvidenceDatabaseTest.nodeObservation(databases);
+            var at=java.time.LocalDateTime.ofInstant(java.time.Instant.now().minusSeconds(1),java.time.ZoneOffset.UTC);
+            j.update("UPDATE resource_observation SET observed_at=?,valid_until=?",at,at.plusMinutes(10));
+            var request=requestBody(UUID.randomUUID().toString());request.put("requestedResourceSpec",Map.of("memoryBytes",1073741824L,"vramBytesPerGpu",85899345920L,"gpuInterconnect","NONE"));
+            long id=ok(post("/api/compute/requests",request,headers)).path("id").asLong();
+            var body=Map.of("nodeKey","a800-demo","requestId",id);
+            ok(post("/api/compute/queue",body,headers));
+            var outcome=ok(post("/api/compute/reservations",body,headers));
+            assertEquals("RESERVED",outcome.path("outcome").asText(),outcome.toString());
+            allocated=outcome.path("allocationId").asLong();long receipt=outcome.path("receipt").path("id").asLong();
+            assertEquals("PENDING",outcome.path("allocationStatus").asText());assertFalse(outcome.path("authorizesExecution").asBoolean(true));
+            var replay=ok(post("/api/compute/reservations",body,headers));assertEquals("ALREADY_RESERVED",replay.path("outcome").asText());assertEquals(allocated.longValue(),replay.path("allocationId").asLong());
+            var detail=ok(get("/api/compute/reservations/"+receipt,headers));assertEquals(2,detail.path("decisions").size());assertTrue(detail.path("checks").size()>6);
+            assertEquals(1,ok(get("/api/compute/reservations?requestId="+id,headers)).path("total").asLong());
+            assertEquals("APPROVED",ok(get("/api/compute/requests/"+id,headers)).path("request").path("status").asText());
+            assertEquals(0,j.queryForObject("SELECT COUNT(*) FROM hold_period WHERE allocation_id=?",Integer.class,allocated));
+            assertEquals(403,http.exchange("/api/compute/reservations",HttpMethod.POST,new HttpEntity<>(body,headersForRole("VIEWER")),JsonNode.class).getStatusCode().value());
+            assertEquals(403,http.exchange("/api/compute/reservations",HttpMethod.GET,new HttpEntity<>(headersForRole("REVIEWER")),JsonNode.class).getStatusCode().value());
+            assertEquals(0,get("/api/compute/reservations",headersForRole("EDITOR")).path("code").asInt(-1));
+        }catch(com.fasterxml.jackson.core.JsonProcessingException e){throw new RuntimeException(e);}
+        finally{
+            if(allocated!=null){j.update("UPDATE gpu_group SET pending_allocation_id=NULL WHERE pending_allocation_id=?",allocated);j.update("UPDATE gpu_allocation SET status='CANCELLED',closed_at=UTC_TIMESTAMP(6) WHERE id=? AND status='PENDING'",allocated);j.update("UPDATE compute_queue q JOIN compute_job b ON b.request_id=q.request_id JOIN gpu_allocation a ON a.job_id=b.id SET q.status='CANCELLED' WHERE a.id=?",allocated);}
+            for(var r:oldRules)p.update("UPDATE bm_rule SET status=?,expr_json=?,version=? WHERE id=?",r.get("status"),r.get("expr_json"),r.get("version"),r.get("id"));
+            for(var a:oldAssets)p.update("UPDATE bm_compute_data_asset SET max_age_seconds=?,version=? WHERE asset_code=?",a.get("max_age_seconds"),a.get("version"),a.get("asset_code"));
+            for(var o:oldObservations)j.update("UPDATE resource_observation SET observed_at=?,valid_until=? WHERE id=?",o.get("observed_at"),o.get("valid_until"),o.get("id"));
+            j.update("UPDATE resource_observation SET observed_at='2026-11-06 10:00:00',valid_until='2026-11-06 10:01:00' WHERE subject_kind='NODE'");
+        }
+    }
+
     @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
