@@ -62,6 +62,8 @@ class ComputeEvidenceDatabaseTest {
             assertEquals(10, original.evidence().size());
             var ledger = original.evidence().getFirst();
             assertEquals("PLATFORM_LEDGER", ledger.source());
+            assertEquals(1, ledger.values().path("activeJob").path("id").asLong());
+            assertEquals(2, ledger.values().path("activeJob").path("effective_gpu_count").asLong());
             assertEquals(2, ledger.values().path("holds").get(1).path("deployment_id").asLong());
             assertEquals("PENDING", ledger.values().path("allocations").get(0).path("status").asText());
             assertFalse(original.toString().contains("demo/train"));

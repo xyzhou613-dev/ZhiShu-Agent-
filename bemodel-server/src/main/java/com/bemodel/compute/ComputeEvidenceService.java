@@ -76,6 +76,16 @@ final class ComputeEvidenceService {
         var requestValues = json.valueToTree(request);
         ((ObjectNode) requestValues).set("requested_resource_spec", read(request.get("requested_resource_spec").toString()));
         ledger.set("request", requestValues);
+        var activeJobs = j.queryForList("""
+                SELECT j.id,j.request_id,j.task_type_id,j.effective_gpu_count,j.effective_resource_spec,j.status
+                FROM active_job a JOIN compute_job j ON j.id=a.job_id AND j.request_id=a.request_id
+                WHERE a.request_id=?
+                """, body.path("requestId").longValue());
+        if (!activeJobs.isEmpty()) {
+            ObjectNode job = json.valueToTree(activeJobs.getFirst());
+            job.set("effective_resource_spec", read(activeJobs.getFirst().get("effective_resource_spec").toString()));
+            ledger.set("activeJob", job);
+        }
         ledger.set("groups", json.valueToTree(j.queryForList("SELECT id,group_code,current_hold_id,pending_allocation_id FROM gpu_group WHERE node_id=? ORDER BY id", nodeId)));
         ledger.set("holds", json.valueToTree(j.queryForList("""
                 SELECT h.id,h.group_id,h.deployment_id,h.deployment_revision_id,h.allocation_id,
