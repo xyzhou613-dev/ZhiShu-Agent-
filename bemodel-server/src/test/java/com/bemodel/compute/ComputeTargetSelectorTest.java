@@ -12,11 +12,11 @@ class ComputeTargetSelectorTest {
     static final com.fasterxml.jackson.databind.ObjectMapper JSON = ComputeRuleEvaluatorTest.JSON;
     private final ComputeTargetSelector selector = new ComputeTargetSelector(JSON);
     private final Instant at = Instant.parse("2026-11-06T10:00:10Z");
-    private ObjectNode ledger;
-    private ObjectNode settings;
-    private List<ComputeEvidenceService.Evidence> observations;
+    ObjectNode ledger;
+    ObjectNode settings;
+    List<ComputeEvidenceService.Evidence> observations;
 
-    private ComputeEvidenceService.Detail fixture(int count) {
+    ComputeEvidenceService.Detail fixture(int count) {
         ledger = JSON.createObjectNode(); settings = JSON.createObjectNode().put("nodeKey", "a800-demo");
         ledger.putObject("node").put("id", 1).put("node_key", "a800-demo");
         ledger.putObject("request").put("requested_gpu_count", count);
