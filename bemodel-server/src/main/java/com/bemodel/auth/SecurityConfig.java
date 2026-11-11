@@ -74,6 +74,8 @@ public class SecurityConfig {
                             .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers("/api/compute/rule-evaluations", "/api/compute/rule-evaluations/**")
                             .hasAnyRole("ADMIN", "EDITOR")
+                        .requestMatchers("/api/compute/evidence-snapshots", "/api/compute/evidence-snapshots/**")
+                            .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers("/api/compute/actions/results")
                             .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("ADMIN", "EDITOR", "REVIEWER", "VIEWER")

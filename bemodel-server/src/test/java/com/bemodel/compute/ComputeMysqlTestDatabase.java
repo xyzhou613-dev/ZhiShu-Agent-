@@ -13,6 +13,10 @@ record ComputeMysqlTestDatabase(String platformUrl, String businessUrl, String p
                                 JdbcTemplate platformJdbc, JdbcTemplate businessJdbc)
         implements AutoCloseable {
     static ComputeMysqlTestDatabase create() throws Exception {
+        return create(null);
+    }
+
+    static ComputeMysqlTestDatabase create(String businessTarget) throws Exception {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String platform = "m01_test_platform_" + suffix;
         String business = "m01_test_business_" + suffix;
@@ -27,8 +31,10 @@ record ComputeMysqlTestDatabase(String platformUrl, String businessUrl, String p
             try {
                 statement.executeUpdate("CREATE DATABASE `" + platform + "` CHARACTER SET utf8mb4");
                 statement.executeUpdate("CREATE DATABASE `" + business + "` CHARACTER SET utf8mb4");
-                Flyway.configure().dataSource(databases.businessUrl(), username(), password())
-                        .locations("classpath:db/a800-compute").load().migrate();
+                var migration = Flyway.configure().dataSource(databases.businessUrl(), username(), password())
+                        .locations("classpath:db/a800-compute");
+                if (businessTarget != null) migration.target(businessTarget);
+                migration.load().migrate();
                 return databases;
             } catch (Exception e) {
                 databases.close();
