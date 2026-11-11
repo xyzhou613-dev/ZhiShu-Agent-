@@ -34,6 +34,7 @@ class ComputeRuleRunnerTest {
                     "member_rule_code", code, "version", 3, "source_release_id", 12,
                     "evaluator_version", ComputeRuleEvaluator.VERSION, "definition", rule.getExprJson(),
                     "stage", definition.path("stage").asText(), "rule_type", definition.path("kind").asText())));
+            versions.getLast().put("effective_from", java.time.LocalDateTime.of(2026, 11, 6, 10, 0));
         }
         return Map.of("set", new HashMap<>(Map.of("id", 4, "source_release_id", 12, "source_version_tag", "v1.0",
                 "evaluator_version", ComputeRuleEvaluator.VERSION, "formula_version", ComputeVersions.FORMULAS,

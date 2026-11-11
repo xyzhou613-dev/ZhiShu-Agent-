@@ -95,7 +95,7 @@ class ComputeOntologyMigrationTest {
     }
 
     private static void verifyBusinessSample(JdbcTemplate jdbc) {
-        assertEquals(28, jdbc.queryForObject("""
+        assertEquals(34, jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema=DATABASE() AND table_name <> 'flyway_schema_history'
                 """, Integer.class));

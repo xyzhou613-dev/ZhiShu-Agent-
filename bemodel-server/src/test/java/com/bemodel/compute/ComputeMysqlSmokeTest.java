@@ -155,6 +155,56 @@ class ComputeMysqlSmokeTest {
     }
 
     @Test
+    void runsPublishedRuleSnapshotsAndServesRecordedResultsOverHttp() throws Exception {
+        var headers = adminHeaders();
+        var previousRules = databases.platform().queryForList("SELECT id,status FROM bm_rule");
+        try {
+            databases.platform().update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            ok(post("/api/release/publish", Map.of("changeSummary", "evaluation test", "force", true), headers));
+            String path = "/api/compute/rule-evaluations";
+            long last = 0;
+            for (String stage : ComputeRuleRunner.STAGES.keySet()) {
+                JsonNode result = ok(post(path, Map.of("stage", stage, "facts", ComputeRuleRunnerTest.facts(stage)), headers));
+                assertEquals(stage, result.path("run").path("stage").asText());
+                assertEquals("PASS", result.path("run").path("overallResult").asText(), result.toString());
+                assertEquals("CALLER", result.path("run").path("inputSource").asText());
+                assertEquals("admin", result.path("run").path("actor").asText());
+                assertFalse(result.path("run").path("authorizesExecution").asBoolean(true));
+                assertEquals(ComputeRuleRunner.STAGES.get(stage).size(), result.path("checks").size());
+                last = result.path("run").path("id").asLong();
+                assertEquals(result, ok(get(path + "/" + last, headers)));
+            }
+            JsonNode page = ok(get(path + "?pageNum=1&pageSize=1", headers));
+            assertTrue(page.path("total").asLong() >= 6);
+            assertEquals(last, page.path("list").get(0).path("id").asLong());
+            assertEquals("未知规则运行阶段", error(post(path, Map.of("stage", "UNKNOWN", "facts", Map.of()), headers)));
+            assertEquals("facts 包含不属于该阶段的规则编号",
+                    error(post(path, Map.of("stage", "ADMISSION", "facts", Map.of("R-09", Map.of())), headers)));
+            assertEquals("ERROR", ok(post(path, Map.of("stage", "ADMISSION", "facts", Map.of()), headers))
+                    .path("run").path("overallResult").asText());
+            assertTrue(error(post(path, Map.of("stage", "ADMISSION", "facts",
+                    Map.of("R-01", "x".repeat(65537))), headers)).contains("64K"));
+            assertEquals("规则运行记录不存在", error(get(path + "/" + Long.MAX_VALUE, headers)));
+            assertEquals(403, http.exchange(path, HttpMethod.GET, new HttpEntity<>(headersForRole("VIEWER")),
+                    JsonNode.class).getStatusCode().value());
+            var anonymous = java.net.http.HttpRequest.newBuilder(URI.create(http.getRootUri() + path))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{}")).build();
+            try (var client = java.net.http.HttpClient.newHttpClient()) {
+                assertEquals(401, client.send(anonymous, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode());
+            }
+            assertEquals(403, http.exchange(path, HttpMethod.POST,
+                    new HttpEntity<>(Map.of("stage", "ADMISSION", "facts", Map.of()), headersForRole("VIEWER")),
+                    JsonNode.class).getStatusCode().value());
+            assertEquals(0, get(path, headersForRole("EDITOR")).path("code").asInt(-1));
+        } finally {
+            for (var rule : previousRules) {
+                databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?", rule.get("status"), rule.get("id"));
+            }
+        }
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 

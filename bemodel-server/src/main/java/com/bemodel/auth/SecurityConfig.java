@@ -72,6 +72,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/cs/clarify/list").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers("/api/compute/requests", "/api/compute/requests/**")
                             .hasAnyRole("ADMIN", "EDITOR")
+                        .requestMatchers("/api/compute/rule-evaluations", "/api/compute/rule-evaluations/**")
+                            .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers("/api/compute/actions/results")
                             .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("ADMIN", "EDITOR", "REVIEWER", "VIEWER")

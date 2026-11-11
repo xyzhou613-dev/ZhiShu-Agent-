@@ -52,8 +52,12 @@ final class ComputeRuleRunner {
             throw new BizException("尚未激活算力规则集合，请先发布并同步规则");
         }
         long setId = number.longValue();
-        JsonNode snapshot = json.valueToTree(releases.snapshot(setId));
-        JsonNode set = snapshot.path("set");
+        Map<String, Object> snapshot = releases.snapshot(setId);
+        JsonNode set = metadata(snapshot.get("set"), "id", "source_release_id", "source_version_tag",
+                "evaluator_version", "formula_version", "settings");
+        if (!(snapshot.get("rules") instanceof List<?> versions)) {
+            throw new BizException("规则执行快照不完整");
+        }
         if (set.path("id").asLong() != setId
                 || !ComputeRuleEvaluator.VERSION.equals(set.path("evaluator_version").asText())
                 || !ComputeVersions.FORMULAS.equals(set.path("formula_version").asText())) {
@@ -77,7 +81,9 @@ final class ComputeRuleRunner {
             var checked = new ArrayList<ExecutionRule>();
             var seen = new java.util.HashSet<String>();
             var ids = new java.util.HashSet<Long>();
-            for (JsonNode version : snapshot.path("rules")) {
+            for (Object row : versions) {
+                JsonNode version = metadata(row, "id", "rule_code", "member_rule_code", "version",
+                        "source_release_id", "evaluator_version", "definition", "stage", "rule_type");
                 String code = version.path("rule_code").asText();
                 Rule source = sourceRules.get(code);
                 if (source == null || !seen.add(code) || !code.equals(version.path("member_rule_code").asText())
@@ -104,6 +110,17 @@ final class ComputeRuleRunner {
         } catch (JsonProcessingException e) {
             throw new BizException("规则执行快照无法解析");
         }
+    }
+
+    private JsonNode metadata(Object row, String... fields) {
+        if (!(row instanceof Map<?, ?> values)) {
+            throw new BizException("规则执行快照格式无效");
+        }
+        var node = json.createObjectNode();
+        for (String field : fields) {
+            node.set(field, json.valueToTree(values.get(field)));
+        }
+        return node;
     }
 
     Evaluation evaluate(Snapshot snapshot, String stage, JsonNode facts) {

@@ -12,14 +12,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfEnvironmentVariable(named="COMPUTE_ONTOLOGY_MYSQL_URL",matches="jdbc:mysql:.*")
 class ComputeReleaseBridgeTest {
-    private ComputeReleaseBridge bridge(ComputeMysqlTestDatabase db) {
+    static ComputeReleaseBridge bridge(ComputeMysqlTestDatabase db) {
         Flyway.configure().dataSource(db.platformUrl(),ComputeMysqlTestDatabase.username(),ComputeMysqlTestDatabase.password()).locations("classpath:db/compute-platform").load().migrate();
         return new ComputeReleaseBridge(db.platform(),new ComputeDatabase.Store(db.business(),null),new ComputeRuleService(null,ComputeRuleEvaluatorTest.JSON),ComputeRuleEvaluatorTest.JSON,new DataSourceTransactionManager(db.platform().getDataSource()),1,"a800-demo");
     }
-    private List<Rule> rules() {
+    static List<Rule> rules() {
         return ComputeRuleEvaluator.CODES.stream().map(code->{var r=ComputeRuleEvaluatorTest.rule(code); r.setStatus("PUBLISHED"); return r;}).toList();
     }
-    private long publish(ComputeMysqlTestDatabase db,ComputeReleaseBridge bridge,Map<String,Object> config,String tag) {
+    static long publish(ComputeMysqlTestDatabase db,ComputeReleaseBridge bridge,Map<String,Object> config,String tag) {
         return new TransactionTemplate(new DataSourceTransactionManager(db.platform().getDataSource())).execute(status->{
             bridge.lockPublication();
             try {
