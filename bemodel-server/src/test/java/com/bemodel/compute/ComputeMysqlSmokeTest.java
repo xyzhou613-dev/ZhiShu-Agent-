@@ -143,6 +143,53 @@ class ComputeMysqlSmokeTest {
         assertFalse(find(expired.path("data").path("groups"), "FLEX").path("directlyAllocatable").asBoolean(true));
     }
 
+    @Test
+    void computeRulePreviewsUseStoredVersionAndCannotWriteTheLedger() throws Exception {
+        JsonNode login = http.postForObject("/api/auth/login", Map.of("username", "admin", "password", ADMIN_PASSWORD), JsonNode.class);
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(login.path("data").path("token").asText());
+        var before = databases.business().queryForList("SELECT * FROM gpu_allocation ORDER BY id");
+        JsonNode catalog = get("/api/compute/rules", headers).path("data");
+        assertEquals(14,catalog.size());
+        for (JsonNode binding : catalog) {
+            assertTrue(binding.path("checkAvailable").asBoolean(), binding.toString());
+            JsonNode rule = binding.path("rule");
+            JsonNode definition = ComputeRuleEvaluatorTest.JSON.readTree(rule.path("exprJson").asText());
+            var request = new HttpEntity<>(Map.of("ruleVersion",rule.path("version").asInt(),"facts",definition.path("sampleFacts")),headers);
+            JsonNode preview = http.postForObject("/api/compute/rules/"+rule.path("ruleCode").asText()+"/preview",request,JsonNode.class);
+            assertEquals(0,preview.path("code").asInt(-1),preview.toString());
+            assertEquals("PASS",preview.path("data").path("result").asText(),rule.path("ruleCode").asText());
+            assertTrue(preview.path("data").path("dryRun").asBoolean());
+            assertFalse(preview.path("data").path("authorizesExecution").asBoolean(true));
+        }
+        assertEquals(before,databases.business().queryForList("SELECT * FROM gpu_allocation ORDER BY id"));
+        var stale = new HttpEntity<>(Map.of("ruleVersion",-1,"facts",Map.of()),headers);
+        assertNotEquals(0,http.postForObject("/api/compute/rules/R-01/preview",stale,JsonNode.class).path("code").asInt());
+        var deniedRequest=java.net.http.HttpRequest.newBuilder(URI.create(http.getRootUri()+"/api/compute/rules/R-01/preview"))
+                .header("Content-Type","application/json").POST(java.net.http.HttpRequest.BodyPublishers.ofString("{}" )).build();
+        var unauthenticated=java.net.http.HttpClient.newHttpClient().send(deniedRequest,java.net.http.HttpResponse.BodyHandlers.ofString());
+        assertEquals(401,unauthenticated.statusCode());
+    }
+
+    @Test
+    void editingComputeRuleReturnsToDraftAndRejectsOldVersionAndInvalidHandler() throws Exception {
+        JsonNode login = http.postForObject("/api/auth/login",Map.of("username","admin","password",ADMIN_PASSWORD),JsonNode.class);
+        var headers=new HttpHeaders(); headers.setBearerAuth(login.path("data").path("token").asText());
+        JsonNode catalog=get("/api/compute/rules",headers).path("data");
+        var rule=catalog.get(0).path("rule").deepCopy();
+        int version=rule.path("version").asInt();
+        var response=http.exchange("/api/rule",HttpMethod.PUT,new HttpEntity<>(rule,headers),JsonNode.class).getBody();
+        assertEquals(0,response.path("code").asInt(-1));
+        assertEquals(version+1,response.path("data").path("version").asInt());
+        assertEquals("DRAFT",response.path("data").path("status").asText());
+        var stale=http.exchange("/api/rule",HttpMethod.PUT,new HttpEntity<>(rule,headers),JsonNode.class).getBody();
+        assertNotEquals(0,stale.path("code").asInt());
+        var current=(com.fasterxml.jackson.databind.node.ObjectNode)response.path("data").deepCopy();
+        current.put("exprJson","{\"handler\":\"exec\"}");
+        var invalid=http.exchange("/api/rule",HttpMethod.PUT,new HttpEntity<>(current,headers),JsonNode.class).getBody();
+        assertNotEquals(0,invalid.path("code").asInt());
+    }
+
     private JsonNode get(String path, HttpHeaders headers) {
         var result = http.exchange(path, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
         assertTrue(result.getStatusCode().is2xxSuccessful(), path);

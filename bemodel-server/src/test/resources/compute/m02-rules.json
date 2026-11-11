@@ -1,0 +1,936 @@
+[
+  {
+    "ruleCode": "R-01",
+    "name": "规格与卡数",
+    "conceptCode": "COMPUTE_REQUEST",
+    "ruleType": "校验",
+    "expression": "检查任务类型和完整资源规格；GPU 卡数为正整数，1–4 卡可选目标，5 卡及以上排队，不跨组拼卡。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "ADMISSION",
+      "kind": "VALIDATION",
+      "handler": "specification",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "gpuCount",
+        "taskType",
+        "resourceSpec"
+      ],
+      "inputNotes": {
+        "gpuCount": "正整数，单位张",
+        "taskType": "后端解析的任务类型编码",
+        "resourceSpec": "vramBytesPerGpu/memoryBytes 为正整数；temporaryBytes/persistentBytes 非负，统一字节"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "gpuCount"
+      ],
+      "failureReasons": [
+        "DENY_SPEC",
+        "QUEUE_NO_TARGET",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "提交申请",
+        "规格校验"
+      ],
+      "failureRoute": "非法规格拒绝；五卡及以上排队",
+      "sampleFacts": {
+        "gpuCount": 1,
+        "taskType": "TRAIN",
+        "resourceSpec": {
+          "vramBytesPerGpu": 85899345920,
+          "memoryBytes": 34359738368,
+          "temporaryBytes": 1073741824,
+          "persistentBytes": 1073741824
+        }
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-02",
+    "name": "投影可用性",
+    "conceptCode": "COMPUTE_ALLOCATION",
+    "ruleType": "校验",
+    "expression": "方案后用量=未暂停部署基线+继续有效分配预留+本次新增预留，各类资源均不得超过容量。新预留不得重复计入已有预留。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "PLANNING",
+      "kind": "VALIDATION",
+      "handler": "capacity",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "capacityBytes",
+        "continuingDeploymentBytes",
+        "effectiveReservationBytes",
+        "newReservationBytes"
+      ],
+      "inputNotes": {
+        "capacityBytes": "memoryBytes/temporaryBytes/persistentBytes，非负整数、单位字节；来自同一账本快照",
+        "continuingDeploymentBytes": "memoryBytes/temporaryBytes/persistentBytes，非负整数、单位字节；来自同一账本快照",
+        "effectiveReservationBytes": "memoryBytes/temporaryBytes/persistentBytes，非负整数、单位字节；来自同一账本快照",
+        "newReservationBytes": "memoryBytes/temporaryBytes/persistentBytes，非负整数、单位字节；来自同一账本快照"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "projectedBytes"
+      ],
+      "failureReasons": [
+        "QUEUE_NO_CAPACITY",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "方案生成",
+        "节点容量校验"
+      ],
+      "failureRoute": "容量不足排队",
+      "sampleFacts": {
+        "capacityBytes": {
+          "memoryBytes": 137438953472,
+          "temporaryBytes": 107374182400,
+          "persistentBytes": 1073741824000
+        },
+        "continuingDeploymentBytes": {
+          "memoryBytes": 34359738368,
+          "temporaryBytes": 0,
+          "persistentBytes": 0
+        },
+        "effectiveReservationBytes": {
+          "memoryBytes": 17179869184,
+          "temporaryBytes": 0,
+          "persistentBytes": 0
+        },
+        "newReservationBytes": {
+          "memoryBytes": 34359738368,
+          "temporaryBytes": 1073741824,
+          "persistentBytes": 1073741824
+        }
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-03",
+    "name": "投影配套资源",
+    "conceptCode": "COMPUTE_REQUEST",
+    "ruleType": "校验",
+    "expression": "检查每张使用卡显存、主机内存、临时磁盘、持久存储和互联要求，不将多卡显存相加满足单卡需求。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "PLANNING",
+      "kind": "VALIDATION",
+      "handler": "resources",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "vramBytesPerGpu",
+        "selectedGpuVramBytes",
+        "requiredBytes",
+        "availableBytes",
+        "requiredInterconnect",
+        "groupInterconnect"
+      ],
+      "inputNotes": {
+        "vramBytesPerGpu": "每卡要求，字节",
+        "selectedGpuVramBytes": "使用卡逐卡容量数组，非空，字节",
+        "requiredBytes": "作业各类主机资源要求，字节",
+        "availableBytes": "方案后可用于本作业的资源，字节",
+        "requiredInterconnect": "NONE 表示无互联要求，其他值须与组类型一致",
+        "groupInterconnect": "资产登记的互联类型"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "output"
+      ],
+      "failureReasons": [
+        "QUEUE_RESOURCE_SHORT",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "方案生成",
+        "资源适配校验"
+      ],
+      "failureRoute": "资源不满足排队",
+      "sampleFacts": {
+        "vramBytesPerGpu": 85899345920,
+        "selectedGpuVramBytes": [
+          85899345920
+        ],
+        "requiredBytes": {
+          "memoryBytes": 34359738368,
+          "temporaryBytes": 1073741824,
+          "persistentBytes": 1073741824
+        },
+        "availableBytes": {
+          "memoryBytes": 68719476736,
+          "temporaryBytes": 107374182400,
+          "persistentBytes": 1073741824000
+        },
+        "requiredInterconnect": "NONE",
+        "groupInterconnect": "NVLINK"
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-04",
+    "name": "目标卡组选择",
+    "conceptCode": "COMPUTE_REQUEST",
+    "ruleType": "推导",
+    "expression": "单卡优先健康、证据有效且空闲无预留的 FLEX，否则 B；两卡只选 B；三/四卡只选 A；五卡及以上无目标排队。选中不等于可运行。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "PLANNING",
+      "kind": "PLANNING",
+      "handler": "selectGroup",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "gpuCount",
+        "flex"
+      ],
+      "inputNotes": {
+        "gpuCount": "正整数，单位张",
+        "flex": "单卡时必填 healthy/evidenceFresh/held/reserved/occupied 五个布尔值，未知不得当空闲"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "targetGroup",
+        "requiresFeasibilityChecks"
+      ],
+      "failureReasons": [
+        "QUEUE_NO_TARGET",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "提交决策",
+        "目标组选择"
+      ],
+      "failureRoute": "无目标排队，不绕到其他大组",
+      "sampleFacts": {
+        "gpuCount": 1,
+        "flex": {
+          "healthy": true,
+          "evidenceFresh": true,
+          "held": false,
+          "reserved": false,
+          "occupied": false
+        }
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-05",
+    "name": "动作编排与交接前置条件",
+    "conceptCode": "COMPUTE_DEPLOYMENT",
+    "ruleType": "动作",
+    "expression": "只规划下一步：有效预留→通知成功→摘流成功且在途为零→停服确认并释放GPU→原子交接→启动。未知回执先核对，禁止未经停服确认交接。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "EXECUTION",
+      "kind": "ACTION",
+      "handler": "actionGuard",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "step",
+        "reservationValid",
+        "notificationStatus",
+        "drainStatus",
+        "inFlightRequests",
+        "stopStatus",
+        "gpuReleased",
+        "handoverCommitted"
+      ],
+      "inputNotes": {
+        "step": "NOTIFY/DRAIN/STOP/HANDOVER/START_JOB；按步骤读取所需事实",
+        "reservationValid": "后端当前授权和预留是否仍有效",
+        "notificationStatus": "SUCCEEDED/FAILED/TIMED_OUT/UNKNOWN/PENDING，其他回执字段同样取值",
+        "drainStatus": "摘流回执",
+        "inFlightRequests": "未结束请求数，非负整数",
+        "stopStatus": "停服回执",
+        "gpuReleased": "节点确认资源已释放",
+        "handoverCommitted": "数据库原子交接已提交回执"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "nextAction",
+        "failureRoute",
+        "requiresTransaction"
+      ],
+      "failureReasons": [
+        "QUEUE_CONFLICT",
+        "NOTIFY_FAILED",
+        "ABORT_INFLIGHT",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "NOTIFY",
+        "DRAIN",
+        "STOP",
+        "HANDOVER",
+        "START_JOB"
+      ],
+      "failureRoute": "通知/摘流失败撤销补偿；停服未知先核对",
+      "sampleFacts": {
+        "step": "HANDOVER",
+        "reservationValid": true,
+        "notificationStatus": "SUCCEEDED",
+        "drainStatus": "SUCCEEDED",
+        "inFlightRequests": 0,
+        "stopStatus": "SUCCEEDED",
+        "gpuReleased": true,
+        "handoverCommitted": false
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-06",
+    "name": "收尾交接",
+    "conceptCode": "COMPUTE_ALLOCATION",
+    "ruleType": "动作",
+    "expression": "确认退出后重新检查候选目标、队首、R-02/R-03/R-14；合格则先预留下一分配，否则检查 R-15 恢复；不能恢复则等待资源。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "CLOSURE",
+      "kind": "ACTION",
+      "handler": "closure",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "jobExitConfirmed",
+        "handoffCandidate",
+        "restoreFacts"
+      ],
+      "inputNotes": {
+        "jobExitConfirmed": "节点确认原作业已经退出",
+        "handoffCandidate": "无候选为 null；否则含 targetStillMatches、queueFacts、capacityFacts、resourceFacts、healthFacts，分别复用 R-12/02/03/14 输入",
+        "restoreFacts": "R-15 的完整输入；不合格候选不能阻止恢复检查"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "outcome",
+        "nextAction",
+        "checks"
+      ],
+      "failureReasons": [
+        "INVALID_CLOSURE_FACTS",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "作业退出",
+        "收尾判定"
+      ],
+      "failureRoute": "让位预留失败须重新判定；未知事实不得释放",
+      "sampleFacts": {
+        "jobExitConfirmed": true,
+        "handoffCandidate": null,
+        "restoreFacts": {
+          "groupCards": [
+            {
+              "gpuId": 4,
+              "healthy": true
+            },
+            {
+              "gpuId": 5,
+              "healthy": true
+            }
+          ],
+          "capacityBytes": {
+            "memoryBytes": 137438953472,
+            "temporaryBytes": 107374182400,
+            "persistentBytes": 1073741824000
+          },
+          "otherDeploymentBytes": {
+            "memoryBytes": 34359738368,
+            "temporaryBytes": 0,
+            "persistentBytes": 0
+          },
+          "effectiveReservationBytes": {
+            "memoryBytes": 17179869184,
+            "temporaryBytes": 0,
+            "persistentBytes": 0
+          },
+          "restoreDeploymentBytes": {
+            "memoryBytes": 68719476736,
+            "temporaryBytes": 0,
+            "persistentBytes": 0
+          }
+        }
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-07",
+    "name": "预留事务回执检查",
+    "conceptCode": "COMPUTE_ALLOCATION",
+    "ruleType": "约束",
+    "expression": "检查实际预留事务回执：节点与组锁、重查队首与容量、每组最多一份待生效和一个未结束持有。不能用预检查成功代替数据库条件写入成功。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "SUBMISSION",
+      "kind": "CONSTRAINT",
+      "handler": "reservationReceipt",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "duplicateRequest",
+        "transactionCommitted",
+        "nodeAndGroupLocked",
+        "queueHeadRechecked",
+        "capacityRechecked",
+        "pendingAllocationCount",
+        "openHoldCount",
+        "allocationId"
+      ],
+      "inputNotes": {
+        "duplicateRequest": "是否为已识别的重复申请",
+        "transactionCommitted": "真实事务是否提交，不是预计可以提交",
+        "nodeAndGroupLocked": "事务内是否按约定锁定节点共享容量和卡组",
+        "queueHeadRechecked": "锁内重新检查队首",
+        "capacityRechecked": "锁内重新计算容量",
+        "pendingAllocationCount": "该组待生效分配数；成功回执应为1",
+        "openHoldCount": "该组未结束持有数，允许旧部署仍持有",
+        "allocationId": "已创建预留编号，正整数"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "allocationId",
+        "receiptOnly"
+      ],
+      "failureReasons": [
+        "DENY_DUPLICATE",
+        "QUEUE_CONFLICT",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "预留事务",
+        "提交回执"
+      ],
+      "failureRoute": "冲突排队；重复申请返回原结果，由申请接口完成",
+      "sampleFacts": {
+        "duplicateRequest": false,
+        "transactionCommitted": true,
+        "nodeAndGroupLocked": true,
+        "queueHeadRechecked": true,
+        "capacityRechecked": true,
+        "pendingAllocationCount": 1,
+        "openHoldCount": 1,
+        "allocationId": 1
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-08",
+    "name": "通知回执检查",
+    "conceptCode": "COMPUTE_EVENT",
+    "ruleType": "动作",
+    "expression": "抢占前与恢复后通知员工、负责团队和 harness。抢占通知失败/超时不摘流，进入撤销补偿；恢复后投递失败保留事件并重试通知。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "GLOBAL",
+      "kind": "ACTION",
+      "handler": "notification",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "event",
+        "recipients",
+        "deliveryStatus"
+      ],
+      "inputNotes": {
+        "event": "PREEMPTION 或 RESTORED",
+        "recipients": "解析后的员工/团队稳定编号数组，非空",
+        "deliveryStatus": "渠道回执 SUCCEEDED/FAILED/TIMED_OUT/UNKNOWN/PENDING；站内已读不等于送达"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "event",
+        "recipients",
+        "failureRoute"
+      ],
+      "failureReasons": [
+        "NOTIFY_FAILED",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "抢占前通知",
+        "恢复后通知"
+      ],
+      "failureRoute": "抢占失败撤销补偿；恢复后失败重试投递",
+      "sampleFacts": {
+        "event": "PREEMPTION",
+        "recipients": [
+          "employee:DEMO-001",
+          "team:DEMO",
+          "team:harness"
+        ],
+        "deliveryStatus": "SUCCEEDED"
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-10",
+    "name": "决策审计完整性",
+    "conceptCode": "COMPUTE_DECISION",
+    "ruleType": "校验",
+    "expression": "决策提交前检查判断时间、快照、逐条规则版本与证据引用；至少一条决策→规则判定→证据路径存在，所有引用可解析，不能将证据不全的决策提交。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "GLOBAL",
+      "kind": "VALIDATION",
+      "handler": "audit",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "snapshotId",
+        "asOf",
+        "checks",
+        "evidence"
+      ],
+      "inputNotes": {
+        "snapshotId": "本次证据集合编号",
+        "asOf": "带时区 ISO 判定时间",
+        "checks": "每项含 ruleCode、正整数 ruleVersion、result（PASS/FAIL/NOT_APPLICABLE/ERROR）、evidenceIds 数组",
+        "evidence": "每项含 evidenceId、snapshotId、source、observedAt、validUntil；引用必须解析到本集合"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "evidenceCount"
+      ],
+      "failureReasons": [
+        "AUDIT_INCOMPLETE",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "决策提交前",
+        "审计校验"
+      ],
+      "failureRoute": "阻断决策提交",
+      "sampleFacts": {
+        "snapshotId": "S1",
+        "asOf": "2026-11-06T10:00:00Z",
+        "checks": [
+          {
+            "ruleCode": "R-11",
+            "ruleVersion": 1,
+            "result": "PASS",
+            "evidenceIds": [
+              "E1"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "evidenceId": "E1",
+            "snapshotId": "S1",
+            "source": "SIMULATED_GPU",
+            "observedAt": "2026-11-06T10:00:00Z",
+            "validUntil": "2026-11-06T10:00:30Z"
+          }
+        ]
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-11",
+    "name": "证据新鲜度",
+    "conceptCode": "COMPUTE_EVIDENCE",
+    "ruleType": "校验",
+    "expression": "同一 asOf 下所有证据均满足 observedAt≤asOf≤validUntil，且年龄不超过规则配置 maxAgeSeconds；未来、过期或陈旧证据不参与调度。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "ADMISSION",
+      "kind": "VALIDATION",
+      "handler": "freshness",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "asOf",
+        "evidence"
+      ],
+      "inputNotes": {
+        "asOf": "本次演练的固定判断时间；正式调度必须由服务端生成",
+        "evidence": "非空数组，每项含 observedAt、validUntil，带时区 ISO 时间"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "asOf",
+        "maxAgeSeconds"
+      ],
+      "failureReasons": [
+        "QUEUE_STALE_EVIDENCE",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "每次决策前",
+        "证据校验"
+      ],
+      "failureRoute": "排队并等待有效观测",
+      "sampleFacts": {
+        "asOf": "2026-11-06T10:00:00Z",
+        "evidence": [
+          {
+            "evidenceId": "E1",
+            "snapshotId": "S1",
+            "source": "SIMULATED_GPU",
+            "observedAt": "2026-11-06T10:00:00Z",
+            "validUntil": "2026-11-06T10:00:30Z"
+          }
+        ]
+      },
+      "parameters": {
+        "maxAgeSeconds": 30
+      },
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-12",
+    "name": "队列排序与队首仲裁",
+    "conceptCode": "COMPUTE_REQUEST",
+    "ruleType": "推导",
+    "expression": "对目标组有效候选按等级降序、提交时间升序、requestId升序排序，只有队首可提交。排序不能代替同组串行锁。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "SUBMISSION",
+      "kind": "PLANNING",
+      "handler": "queueHead",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "requestId",
+        "queue"
+      ],
+      "inputNotes": {
+        "requestId": "当前申请编号，正整数",
+        "queue": "后端已按目标组和有效状态筛选的候选；每项 requestId、priority、submittedAt，不得重复编号"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "queueOrder"
+      ],
+      "failureReasons": [
+        "QUEUE_NOT_HEAD",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "队列重评",
+        "预留事务前"
+      ],
+      "failureRoute": "非队首等待",
+      "sampleFacts": {
+        "requestId": 1,
+        "queue": [
+          {
+            "requestId": 1,
+            "priority": 20,
+            "submittedAt": "2026-11-06T10:00:00Z"
+          },
+          {
+            "requestId": 2,
+            "priority": 20,
+            "submittedAt": "2026-11-06T10:00:01Z"
+          }
+        ]
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-13",
+    "name": "抢占范围",
+    "conceptCode": "COMPUTE_DEPLOYMENT",
+    "ruleType": "校验",
+    "expression": "仅更高等级训练任务可抢占允许暂停的常驻部署；作业不可抢，同级排队，C 和单卡常驻部署默认保留。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "SUBMISSION",
+      "kind": "VALIDATION",
+      "handler": "preemption",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "preemptionRequired",
+        "taskType",
+        "holderKind",
+        "groupCode",
+        "preemptible",
+        "deploymentGpuCount",
+        "requestPriority",
+        "deploymentPriority"
+      ],
+      "inputNotes": {
+        "preemptionRequired": "不需抢占时返回 NOT_APPLICABLE",
+        "taskType": "当前仅 TRAIN 训练类型允许抢占",
+        "holderKind": "必须为 DEPLOYMENT，ALLOCATION/JOB 不可抢",
+        "groupCode": "当前只有 A/B 可抢占，C 默认保留",
+        "preemptible": "原部署授权开关",
+        "deploymentGpuCount": "常驻部署卡数，单卡默认保留",
+        "requestPriority": "请求等级，非负整数",
+        "deploymentPriority": "原部署等级；必须严格低于请求等级"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "output"
+      ],
+      "failureReasons": [
+        "QUEUE_NOT_PREEMPTIBLE",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "抢占授权",
+        "动作前重新校验"
+      ],
+      "failureRoute": "不能抢占则排队",
+      "sampleFacts": {
+        "preemptionRequired": true,
+        "taskType": "TRAIN",
+        "holderKind": "DEPLOYMENT",
+        "groupCode": "B",
+        "preemptible": true,
+        "deploymentGpuCount": 2,
+        "requestPriority": 20,
+        "deploymentPriority": 10
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-14",
+    "name": "作业使用卡健康",
+    "conceptCode": "COMPUTE_GPU_GROUP",
+    "ruleType": "校验",
+    "expression": "启动只允许选择目标组内健康 GPU；使用卡编号不重复、数量等于作业要求。恢复时检查全组健康，由 R-15 执行。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "PLANNING",
+      "kind": "VALIDATION",
+      "handler": "health",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "gpuCount",
+        "groupCards",
+        "usedGpuIds"
+      ],
+      "inputNotes": {
+        "gpuCount": "正整数，所需卡数",
+        "groupCards": "完整目标组成员，每项 gpuId、明确 healthy 布尔值",
+        "usedGpuIds": "实际选择的组内 GPU 编号，不重复"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "usedGpuIds"
+      ],
+      "failureReasons": [
+        "QUEUE_GROUP_UNHEALTHY",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "作业启动前",
+        "收尾让位校验"
+      ],
+      "failureRoute": "不满足则排队",
+      "sampleFacts": {
+        "gpuCount": 1,
+        "groupCards": [
+          {
+            "gpuId": 4,
+            "healthy": true
+          },
+          {
+            "gpuId": 5,
+            "healthy": true
+          }
+        ],
+        "usedGpuIds": [
+          4
+        ]
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  },
+  {
+    "ruleCode": "R-15",
+    "name": "恢复可行性",
+    "conceptCode": "COMPUTE_DEPLOYMENT",
+    "ruleType": "校验",
+    "expression": "恢复原部署前检查全组卡健康，且其他部署基线+其他有效分配预留+本部署恢复基线不超容量；检查通过后才允许启动，之后仍须健康检查。",
+    "severity": "高",
+    "owner": "算力平台",
+    "engine": "COMPUTE",
+    "status": "DRAFT",
+    "version": 1,
+    "definition": {
+      "policyVersion": "A800-v0.7",
+      "stage": "CLOSURE",
+      "kind": "VALIDATION",
+      "handler": "restore",
+      "evaluatorVersion": "a800-m02-v1",
+      "inputs": [
+        "groupCards",
+        "capacityBytes",
+        "otherDeploymentBytes",
+        "effectiveReservationBytes",
+        "restoreDeploymentBytes"
+      ],
+      "inputNotes": {
+        "groupCards": "原卡组完整成员及明确的健康值",
+        "capacityBytes": "节点可调度容量，字节",
+        "otherDeploymentBytes": "其他继续持有部署基线，字节",
+        "effectiveReservationBytes": "其他有效预留，排除正在释放的旧分配，字节",
+        "restoreDeploymentBytes": "固定恢复版本的资源基线，字节"
+      },
+      "outputs": [
+        "result",
+        "reasonCode",
+        "ruleVersion",
+        "projectedBytes"
+      ],
+      "failureReasons": [
+        "RECOVERY_UNHEALTHY",
+        "RECOVERY_NO_CAPACITY",
+        "INVALID_FACTS"
+      ],
+      "workflowSteps": [
+        "收尾恢复判定",
+        "恢复启动前"
+      ],
+      "failureRoute": "不健康或容量不足则等待资源",
+      "sampleFacts": {
+        "groupCards": [
+          {
+            "gpuId": 4,
+            "healthy": true
+          },
+          {
+            "gpuId": 5,
+            "healthy": true
+          }
+        ],
+        "capacityBytes": {
+          "memoryBytes": 137438953472,
+          "temporaryBytes": 107374182400,
+          "persistentBytes": 1073741824000
+        },
+        "otherDeploymentBytes": {
+          "memoryBytes": 34359738368,
+          "temporaryBytes": 0,
+          "persistentBytes": 0
+        },
+        "effectiveReservationBytes": {
+          "memoryBytes": 17179869184,
+          "temporaryBytes": 0,
+          "persistentBytes": 0
+        },
+        "restoreDeploymentBytes": {
+          "memoryBytes": 68719476736,
+          "temporaryBytes": 0,
+          "persistentBytes": 0
+        }
+      },
+      "parameters": {},
+      "executionBoundary": "只读演练；输入来自调用方，不是可信调度证据。正式执行须由后端在同一决策快照内构造事实，不能依据此接口批准或执行。"
+    }
+  }
+]

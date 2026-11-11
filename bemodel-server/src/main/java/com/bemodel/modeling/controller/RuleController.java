@@ -27,8 +27,7 @@ public class RuleController {
 
     @PutMapping
     public Result<Rule> update(@RequestBody Rule rule) {
-        ruleService.updateById(rule);
-        return Result.ok(rule);
+        return Result.ok(ruleService.updateContent(rule));
     }
 
     @PostMapping("/transition/{ruleCode}")

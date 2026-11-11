@@ -1,6 +1,6 @@
 # A800 算力版任务清单与人工验收
 
-基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，业务库仍为 V2。
+基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定，业务库仍为 V2。
 
 ## 任务清单
 
@@ -9,6 +9,7 @@
 - [x] 复用 BeModel 概念、关系、数据源和映射页面。提供卡组只读 API。
 - [x] 定向测试及后端构建。提供 MySQL 冒烟测试和人工验收步骤。
 - [x] M-01：18 类对象、138 项关键属性和 30 条标准关系，附来源、状态、基数和未落库说明。
+- [x] M-02：14 条草稿规则、固定处理函数、版本检查、流程对应关系与只读演练，详见 `docs/A800-compute-m02.md`。
 - [ ] 人工在浏览器逐项核对建模页面；自动数据库与 HTTP 验证见文末命令。
 
 ## 启动
@@ -36,7 +37,7 @@ $env:APP_SECRET_KEY = '<数据源凭证加密密钥>'
 
 ## 人工验收
 
-1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V5，业务库迁移到 V2，应有 28 张业务表。
+1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V6，业务库迁移到 V2，应有 28 张业务表。
 2. 本体管理应出现「算力管理」域，含 18 类概念。参照 `docs/A800-compute-ontology-checklist.md` 核对 138 项属性和 30 条标准关系；含用户自建关系的库允许多于 30 条。打开数据源与映射页面，确认 `A800_COMPUTE` 可见，`COMPUTE_GPU_DEVICE.UUID` 对应 `gpu_device.gpu_uuid`。
 3. 调用已登录的查询。固定样例观测时间为 `2026-11-06T10:00:00Z`，有效 30 秒。接口以当前账本为准，`evidenceAsOf` 只控制读取和校验哪一时点的观测。
 
@@ -78,3 +79,11 @@ mvn '-Dtest=ComputeOntologyMigrationTest,ComputeMysqlSmokeTest,ComputeProfileTes
 ## M-01 验证记录（2026-11-10）
 
 在 MySQL 8.4 随机临时库运行上述 5 个测试类，共 9 项测试，失败 0、错误 0、跳过 0。覆盖 V3→V5 升级、全新初始化、再次迁移无变化、原编号与字段映射及历史快照保留、自建关系及同名冲突保护、真实 HTTP 登录和概念详情，以及八卡状态查询。测试库完成后清理，未迁移现有应用库。浏览器页面逐项检查仍按上方人工验收清单执行。
+
+## M-02 验证记录（2026-11-11）
+
+7 个定向测试类共 27 项通过、无跳过：`ComputeRuleEvaluatorTest`、`ComputeRuleServiceTest`、`ComputeRuleMigrationTest`、`ComputeMysqlSmokeTest`、`ComputeProfileTest`、`ComputeDatabaseTest`、`ComputeGroupQueryTest`。数据库用例在随机隔离库验证，覆盖原始五条规则原位升级、九条新增、再次迁移无变化，以及仅名称/描述被修改或已发布的旧规则保留。HTTP 用例验证 14 条演练、版本漂移拒绝、编辑回草稿、未知处理函数拒绝和未认证请求拒绝。前端 `pnpm build` 通过。
+
+本机使用 JDK 24，包含 Record mock 的 HTTP 测试使用测试 JVM 参数 `-DargLine=-Dnet.bytebuddy.experimental=true` 兼容现有 Byte Buddy；项目目标仍为 Java 21，没有为此升级依赖。其他开发机可使用项目要求的 JDK 21。
+
+本机应用连接共享库，规则表备份后成功迁移至 V6；原 M-01 的 18/138/30 项保留。14 条规则均为草稿，实际 HTTP 样例演练通过；运行规则快照和执行动作仍为零，未执行真实调度。浏览器自动化宿主不可用，尚未完成页面视觉/点击验收。
