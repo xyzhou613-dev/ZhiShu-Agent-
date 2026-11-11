@@ -49,6 +49,7 @@ class ComputeCapacityProjectorTest {
     @Test void countsOwnReservationOnceAndOnlyRemovesAnEligiblePauseConditionally() {
         fixture();var p=run();assertEquals(490,p.output().path("projectedBytes").path("memoryBytes").asLong());
         assertEquals("PASS",p.overallResult().name());assertEquals(60,p.output().path("effectiveReservationBytes").path("memoryBytes").asLong());
+        assertEquals("UNKNOWN",check(p,"R-03").facts().path("groupInterconnect").asText());
         proposal.put("pausedDeploymentId",2);p=run();
         assertEquals(290,p.output().path("projectedBytes").path("memoryBytes").asLong());
         assertTrue(p.output().path("requiresStopConfirmation").asBoolean());
@@ -69,6 +70,7 @@ class ComputeCapacityProjectorTest {
         assertEquals("UNKNOWN_INTERCONNECT",check(run(),"R-03").reasonCode());
         ((ObjectNode)ledger.path("activeJob").path("effective_resource_spec")).remove("vramBytesPerGpu");
         assertEquals("UNKNOWN_VRAM_REQUIREMENT",check(run(),"R-03").reasonCode());
+        assertTrue(check(run(),"R-03").facts().path("vramBytesPerGpu").isNull());
         fixture();((ObjectNode)ledger.path("node")).put("memory_capacity_bytes",500);
         assertEquals("QUEUE_NO_CAPACITY",check(run(),"R-02").reasonCode());
     }
@@ -78,5 +80,22 @@ class ComputeCapacityProjectorTest {
         fixture();((ObjectNode)ledger.path("jobAllocations").get(0)).put("status","RELEASED");assertThrows(BizException.class,this::run);
         fixture();((ObjectNode)ledger.path("deploymentBaselines").get(0)).put("memory_bytes",Long.MAX_VALUE);
         assertThrows(BizException.class,this::run);
+    }
+
+    @Test void selectsEnoughIndividuallyCompatibleCardsInsteadOfAddingVramAcrossCards() {
+        fixture();ledger.withArray("jobAllocations").removeAll();ledger.withArray("allocations").remove(0);
+        ((ObjectNode)ledger.path("activeJob")).put("effective_gpu_count",3);
+        ((ObjectNode)ledger.path("cards").get(0)).put("vram_bytes",8);
+        var projected=run();
+        assertEquals("PASS",check(projected,"R-03").result().name());
+        assertFalse(projected.output().path("usedGpuIds").toString().contains("1"));
+        ((ObjectNode)ledger.path("cards").get(1)).put("vram_bytes",8);
+        assertEquals("QUEUE_RESOURCE_SHORT",check(run(),"R-03").reasonCode());
+        fixture();ledger.withArray("jobAllocations").removeAll();ledger.withArray("allocations").remove(0);
+        ((ObjectNode)ledger.path("activeJob")).put("effective_gpu_count",3);
+        ((ObjectNode)ledger.path("activeJob").path("effective_resource_spec")).remove("vramBytesPerGpu");
+        ((ObjectNode)source.observations.get(0).values()).put("healthy",false);
+        assertEquals("PASS",check(run(),"R-14").result().name());
+        assertEquals("UNKNOWN_VRAM_REQUIREMENT",check(run(),"R-03").reasonCode());
     }
 }

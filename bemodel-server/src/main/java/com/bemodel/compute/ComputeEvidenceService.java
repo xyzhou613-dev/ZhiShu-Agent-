@@ -77,8 +77,9 @@ final class ComputeEvidenceService {
         ((ObjectNode) requestValues).set("requested_resource_spec", read(request.get("requested_resource_spec").toString()));
         ledger.set("request", requestValues);
         var activeJobs = j.queryForList("""
-                SELECT j.id,j.request_id,j.task_type_id,j.effective_gpu_count,j.effective_resource_spec,j.status
+                SELECT j.id,j.request_id,j.task_type_id,j.effective_gpu_count,j.effective_resource_spec,j.status,t.type_code,t.priority
                 FROM active_job a JOIN compute_job j ON j.id=a.job_id AND j.request_id=a.request_id
+                JOIN task_type t ON t.id=j.task_type_id
                 WHERE a.request_id=?
                 """, body.path("requestId").longValue());
         if (!activeJobs.isEmpty()) {
@@ -86,6 +87,10 @@ final class ComputeEvidenceService {
             job.set("effective_resource_spec", read(activeJobs.getFirst().get("effective_resource_spec").toString()));
             ledger.set("activeJob", job);
         }
+        ledger.set("jobAllocations", activeJobs.isEmpty() ? json.createArrayNode() : json.valueToTree(j.queryForList("""
+                SELECT a.id,a.job_id,a.group_id,g.node_id,a.status,a.memory_bytes,a.temporary_bytes,a.persistent_bytes
+                FROM gpu_allocation a JOIN gpu_group g ON g.id=a.group_id WHERE a.job_id=? ORDER BY a.id
+                """, activeJobs.getFirst().get("id"))));
         ledger.set("groups", json.valueToTree(j.queryForList("SELECT id,group_code,current_hold_id,pending_allocation_id FROM gpu_group WHERE node_id=? ORDER BY id", nodeId)));
         ledger.set("holds", json.valueToTree(j.queryForList("""
                 SELECT h.id,h.group_id,h.deployment_id,h.deployment_revision_id,h.allocation_id,
@@ -104,6 +109,12 @@ final class ComputeEvidenceService {
                 FROM deployment d JOIN deployment_revision r ON r.deployment_id=d.id
                 JOIN hold_period h ON h.deployment_revision_id=r.id AND h.deployment_id=d.id AND h.ended_at IS NULL
                 JOIN gpu_group g ON g.id=d.group_id WHERE g.node_id=? ORDER BY d.id
+                """, nodeId)));
+        ledger.set("deploymentRevisions", json.valueToTree(j.queryForList("""
+                SELECT r.id,r.deployment_id,r.version,d.group_id,d.preemptible,
+                       r.memory_bytes,r.temporary_bytes,r.persistent_bytes
+                FROM deployment_revision r JOIN deployment d ON d.id=r.deployment_id
+                JOIN gpu_group g ON g.id=d.group_id WHERE g.node_id=? ORDER BY r.id
                 """, nodeId)));
         ledger.set("allocationCards", json.valueToTree(j.queryForList("""
                 SELECT ag.allocation_id,ag.gpu_id FROM allocation_gpu ag

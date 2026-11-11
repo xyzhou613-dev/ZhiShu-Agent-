@@ -64,7 +64,7 @@ final class ComputeTargetSelector {
                 status, facts, details, List.copyOf(references), rule);
     }
 
-    private void validateLayout(JsonNode ledger, JsonNode settings) {
+    static void validateLayout(JsonNode ledger, JsonNode settings) {
         Map<String,Integer> layout = Map.of("A",4,"B",2,"C",1,"FLEX",1);
         if (!settings.path("nodeKey").isTextual() || !settings.path("nodeKey").equals(ledger.path("node").path("node_key"))
                 || settings.path("groups").size() != 4 || ledger.path("groups").size() != 4)

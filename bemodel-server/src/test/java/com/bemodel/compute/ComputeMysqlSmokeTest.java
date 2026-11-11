@@ -283,6 +283,31 @@ class ComputeMysqlSmokeTest {
     }
 
     @Test
+    void projectsCapacityAndRestorationWithHistoryAndPermissionsOverHttp() {
+        var headers=adminHeaders();var previous=databases.platform().queryForList("SELECT id,status FROM bm_rule");
+        try {
+            databases.platform().update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            ok(post("/api/release/publish",Map.of("changeSummary","projection test","force",true),headers));
+            String path="/api/compute/capacity-projections";
+            var projected=ok(post(path,Map.of("nodeKey","a800-demo","requestId",1,"pausedDeploymentId",2),headers));
+            assertEquals(77309411328L,projected.path("output").path("projectedBytes").path("memoryBytes").asLong());
+            assertEquals("UNKNOWN",projected.path("run").path("feasibility").asText());
+            assertEquals("admin",projected.path("run").path("actor").asText());
+            assertFalse(projected.path("run").path("authorizesExecution").asBoolean(true));
+            assertEquals(projected,ok(get(path+"/"+projected.path("run").path("id").asLong(),headers)));
+            var restored=ok(post(path,Map.of("nodeKey","a800-demo","requestId",1,"mode","RESTORE","restoreRevisionId",2),headers));
+            assertEquals(94489280512L,restored.path("output").path("projectedBytes").path("memoryBytes").asLong());
+            assertTrue(ok(get(path+"?requestId=1&pageSize=1",headers)).path("total").asLong()>=2);
+            assertEquals("容量投影记录不存在",error(get(path+"/"+Long.MAX_VALUE,headers)));
+            assertTrue(error(post(path,Map.of("nodeKey","a800-demo","requestId",1,"mode","BAD"),headers)).contains("mode"));
+            for(String role:List.of("VIEWER","REVIEWER"))assertEquals(403,http.exchange(path,HttpMethod.GET,new HttpEntity<>(headersForRole(role)),JsonNode.class).getStatusCode().value());
+            assertEquals(403,http.exchange(path,HttpMethod.POST,new HttpEntity<>(Map.of("nodeKey","a800-demo","requestId",1),headersForRole("VIEWER")),JsonNode.class).getStatusCode().value());
+            assertEquals(0,get(path,headersForRole("EDITOR")).path("code").asInt(-1));
+            assertEquals(77309411328L,ok(get("/api/compute/capacity?nodeKey=a800-demo&jobId=1&pausedDeploymentId=2",headers)).path("projectedBytes").path("memoryBytes").asLong());
+        }finally{for(var row:previous)databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?",row.get("status"),row.get("id"));}
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 

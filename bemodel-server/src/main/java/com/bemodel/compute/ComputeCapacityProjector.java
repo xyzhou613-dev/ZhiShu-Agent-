@@ -24,6 +24,7 @@ final class ComputeCapacityProjector {
     private Projection calculate(ComputeEvidenceService.Detail captured,ComputeRuleRunner.Snapshot rules,JsonNode settings,JsonNode proposal) {
         JsonNode ledger=captured.evidence().stream().filter(e->"PLATFORM_LEDGER".equals(e.source())).findFirst().orElseThrow().values();
         if(!captured.snapshot().sealed() || captured.snapshot().ruleSetId()!=rules.ruleSetId())throw new BizException("容量投影需要同一集合的已封存快照");
+        ComputeTargetSelector.validateLayout(ledger,settings);
         String mode=proposal.path("mode").asText("PLAN"); boolean restore="RESTORE".equals(mode);
         var checks=new ArrayList<Check>();
         JsonNode node=ledger.path("node"),job=ledger.path("activeJob"),request=ledger.path("request");
@@ -89,7 +90,7 @@ final class ComputeCapacityProjector {
             if(!restore && own!=null && a.path("id").asLong()==own.path("id").asLong())continue;
             reservations=reservations.plus(bytes(a)); included.add(number(a,"id"));
         }
-        Bytes projected=ComputeResourceMath.projection(continuing,reservations,added);
+        Bytes projected=restore?ComputeResourceMath.restoreProjection(continuing,reservations,added):ComputeResourceMath.projection(continuing,reservations,added);
         var capacityFacts=json.createObjectNode();
         capacityFacts.set("capacityBytes",json.valueToTree(capacity.values()));
         capacityFacts.set(restore?"otherDeploymentBytes":"continuingDeploymentBytes",json.valueToTree(continuing.values()));
@@ -124,7 +125,7 @@ final class ComputeCapacityProjector {
             } else {
                 long vram=demand.path("vramBytesPerGpu").isIntegralNumber() && demand.path("vramBytesPerGpu").canConvertToLong()?demand.path("vramBytesPerGpu").asLong():0;
                 var sorted=new ArrayList<>(availableCards);
-                sorted.sort(Comparator.comparing((JsonNode c)->!(health.get(number(c,"id")) && vram>0 && c.path("vram_bytes").asLong()>=vram))
+                sorted.sort(Comparator.comparing((JsonNode c)->!(health.get(number(c,"id")) && (vram<=0 || c.path("vram_bytes").asLong()>=vram)))
                         .thenComparingLong(c->c.path("gpu_index").asLong()));
                 var used=new ArrayList<Long>();
                 if(own!=null)for(JsonNode a:rows(ledger.path("allocationCards")))if(a.path("allocation_id").asLong()==own.path("id").asLong())used.add(number(a,"gpu_id"));
@@ -132,7 +133,8 @@ final class ComputeCapacityProjector {
                 gpuFacts.set("usedGpuIds",json.valueToTree(used));
                 checks.add(evaluate(rules,"R-14",gpuFacts));
                 var resourceFacts=json.createObjectNode();
-                resourceFacts.put("vramBytesPerGpu",vram);var vrams=resourceFacts.putArray("selectedGpuVramBytes");
+                if(vram>0)resourceFacts.put("vramBytesPerGpu",vram);else resourceFacts.putNull("vramBytesPerGpu");
+                var vrams=resourceFacts.putArray("selectedGpuVramBytes");
                 boolean allKnown=true;
                 for(long id:used) {
                     var c=availableCards.stream().filter(x->x.path("id").asLong()==id).findFirst();
@@ -142,8 +144,9 @@ final class ComputeCapacityProjector {
                 resourceFacts.set("availableBytes",json.valueToTree(new Bytes(Math.max(0,capacity.memoryBytes()-continuing.memoryBytes()-reservations.memoryBytes()),
                         Math.max(0,capacity.temporaryBytes()-continuing.temporaryBytes()-reservations.temporaryBytes()),
                         Math.max(0,capacity.persistentBytes()-continuing.persistentBytes()-reservations.persistentBytes())).values()));
-                String interconnect=demand.path("gpuInterconnect").asText("");
-                resourceFacts.put("requiredInterconnect",interconnect).put("groupInterconnect","NONE".equals(interconnect)?"NONE":"UNKNOWN");
+                String interconnect=demand.path("gpuInterconnect").isTextual()?demand.path("gpuInterconnect").textValue():"";
+                if(interconnect.isBlank())resourceFacts.putNull("requiredInterconnect");else resourceFacts.put("requiredInterconnect",interconnect);
+                resourceFacts.put("groupInterconnect","UNKNOWN");
                 if(vram<=0 || !allKnown)checks.add(unknown(rules,"R-03","UNKNOWN_VRAM_REQUIREMENT",resourceFacts));
                 else if(!"NONE".equals(interconnect))checks.add(unknown(rules,"R-03","UNKNOWN_INTERCONNECT",resourceFacts));
                 else checks.add(evaluate(rules,"R-03",resourceFacts));
@@ -157,7 +160,7 @@ final class ComputeCapacityProjector {
         var observations=freshFacts.putArray("evidence");
         for(var e:captured.evidence())if(e.observationId()!=null)observations.addObject().put("observedAt",e.observedAt().toString()).put("validUntil",e.validUntil().toString());
         Check freshness=evaluate(rules,"R-11",freshFacts);
-        if(!captured.snapshot().manifest().path("usable").asBoolean())freshness=new Check(rule(rules,"R-11"),Status.FAIL,"QUEUE_STALE_EVIDENCE",freshFacts,captured.snapshot().manifest().path("issues"));
+        if(!captured.snapshot().manifest().path("usable").asBoolean())freshness=new Check(rule(rules,"R-11"),Status.FAIL,"QUEUE_STALE_EVIDENCE",freshFacts,json.createObjectNode().set("issues",captured.snapshot().manifest().path("issues")));
         checks.add(freshness);
         Status overall=checks.stream().anyMatch(c->c.result()==Status.ERROR)?Status.ERROR:checks.stream().anyMatch(c->c.result()==Status.FAIL)?Status.FAIL:Status.PASS;
         String feasibility=overall==Status.ERROR?"UNKNOWN":overall==Status.FAIL?"INFEASIBLE":"FEASIBLE";
