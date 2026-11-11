@@ -4,7 +4,7 @@
 
 ## 启用和鉴权
 
-以 `compute` profile 启动后端，业务库迁移到最新版本（N-03 初始为 V7，N-04 后为 V8）。V6 增加快照上下文、封存及不可变保护；V7 将运行、逐条检查和证据关联起来。保留 V1～V5，旧 CALLER 运行记录不改写。
+以 `compute` profile 启动后端，业务库迁移到最新版本（N-03 初始为 V7，N-05 后为 V9）。V6 增加快照上下文、封存及不可变保护；V7 将运行、逐条检查和证据关联起来。保留 V1～V5，旧 CALLER 运行记录不改写。
 
 以下接口限 ADMIN / EDITOR，登录后使用 Bearer Token。成功响应为 `code=0,msg="ok",data=...`；业务错误沿用 HTTP 200、`code=500`；未登录返回 401，无权限返回 403。
 
@@ -44,6 +44,8 @@ $runUrl = "$baseUrl/api/compute/rule-evaluations"
 | GPU 观测 | 源观测编号、来源、节点内 GPU 身份、healthy、occupied、原 observedAt / validUntil、状态及可用性原因 |
 | 节点水位 | 源观测编号、来源、节点身份、memoryUsedBytes / temporaryUsedBytes / persistentUsedBytes、原时间及状态 |
 | 规则和来源配置 | 固定 ruleSetId，保存 14 条执行版本及定义版本引用，冻结两类观测的来源、登记版本和时效配置 |
+
+N-05 另将当前作业的分配（包括其他节点或已关闭状态）与节点内部署修订的非敏感资源基线固定在账本中，供投影核对；不会复制启动命令、挂载或镜像配置。
 
 账本来源标记为 PLATFORM_LEDGER，时间表示本次事务读取时间，其有效范围是本次 `asOf`，不是监控采集时间。`ledgerIsHistorical=false`：快照记录本次看到的当前账本，不能据此查询创建快照以前任意时刻的完整账本。
 
