@@ -182,9 +182,8 @@ final class ComputeRequestService {
         });
     }
 
-    private static TransactionTemplate transaction(JdbcTemplate jdbc) {
-        return new TransactionTemplate(new DataSourceTransactionManager(
-                Objects.requireNonNull(jdbc.getDataSource())));
+    private TransactionTemplate transaction(JdbcTemplate jdbc) {
+        return store.transactions();
     }
 
     private Request requireRequest(JdbcTemplate jdbc, long id, boolean lock) {

@@ -101,7 +101,7 @@ public class ComputeReleaseBridge {
             var snapshots=new ArrayList<Rule>();
             for(JsonNode r:cfg.path("rules")) snapshots.add(json.treeToValue(r,Rule.class));
             validateRules(snapshots);
-            var businessTx=new TransactionTemplate(new DataSourceTransactionManager(Objects.requireNonNull(store.jdbc().getDataSource())));
+            var businessTx=store.transactions();
             Long setId=businessTx.execute(status->activate(releaseId,source.get("version_tag").toString(),source.get("payload_hash").toString(),cfg,snapshots,actor));
             platformTransaction(()->{
                 platform.update("UPDATE bm_compute_release_sync SET status='SYNCED',active_set_id=?,last_error=NULL,updated_at=UTC_TIMESTAMP(6) WHERE release_id=?",setId,releaseId);

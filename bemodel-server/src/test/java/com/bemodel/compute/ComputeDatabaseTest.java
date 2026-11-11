@@ -3,8 +3,15 @@ package com.bemodel.compute;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ComputeDatabaseTest {
+    @Test void explicitBusinessEndpointMustNotBeThePlatformDatabase() {
+        var e=ComputeDatabase.Endpoint.business("jdbc:mysql://example:3306/platform","jdbc:mysql://other:3307/business?connectionTimeZone=UTC");
+        assertEquals("other",e.host());assertEquals(3307,e.port());
+        assertThrows(IllegalArgumentException.class,()->ComputeDatabase.Endpoint.business("jdbc:mysql://example/platform","jdbc:mysql://example:3306/platform"));
+        assertThrows(IllegalArgumentException.class,()->ComputeDatabase.Endpoint.business("jdbc:mysql://example/platform","jdbc:mysql://user:pass@example/business"));
+    }
     @Test
     void derivesBusinessSchemaFromResolvedPlatformConnection() {
         var endpoint = ComputeDatabase.Endpoint.fromPlatformUrl(

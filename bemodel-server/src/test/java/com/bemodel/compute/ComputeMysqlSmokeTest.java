@@ -14,7 +14,6 @@ import com.bemodel.datasource.service.SchemaScanService;
 import com.bemodel.auth.JwtService;
 import com.bemodel.auth.PlatformUser;
 import java.net.URI;
-import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,7 +44,7 @@ class ComputeMysqlSmokeTest {
     private static ComputeMysqlTestDatabase databases;
 
     // Replace fixed-name business bootstrap only in this test; real queries use the isolated business database.
-    @MockBean
+    @Autowired
     private ComputeDatabase.Store store;
     @MockBean
     private ComputeDatasourceBootstrap bootstrap;
@@ -60,6 +59,9 @@ class ComputeMysqlSmokeTest {
         properties.add("spring.datasource.url", databases::platformUrl);
         properties.add("spring.datasource.username", ComputeMysqlTestDatabase::username);
         properties.add("spring.datasource.password", ComputeMysqlTestDatabase::password);
+        properties.add("compute.datasource.jdbc-url",databases::businessUrl);
+        properties.add("compute.datasource.username",ComputeMysqlTestDatabase::username);
+        properties.add("compute.datasource.password",ComputeMysqlTestDatabase::password);
         properties.add("spring.flyway.locations", () -> "classpath:db/compute-platform");
         properties.add("spring.config.import", () -> "");
         properties.add("COMPUTE_ADMIN_PASSWORD", () -> ADMIN_PASSWORD);
@@ -73,9 +75,6 @@ class ComputeMysqlSmokeTest {
     @BeforeEach
     void useIsolatedBusinessDatabase() {
         var uri = URI.create(databases.businessUrl().substring("jdbc:".length()));
-        var endpoint = new ComputeDatabase.Endpoint(uri.getHost(), uri.getPort(), databases.businessUrl());
-        when(store.jdbc()).thenReturn(databases.business());
-        when(store.endpoint()).thenReturn(endpoint);
         if (datasources.getByCode("A800_COMPUTE") == null) {
             var source = new Datasource();
             source.setDsCode("A800_COMPUTE");
@@ -102,6 +101,21 @@ class ComputeMysqlSmokeTest {
 
     @Autowired
     private JwtService jwt;
+    @Autowired
+    private org.springframework.context.ApplicationContext context;
+
+    @Test
+    void keepsPlatformAndBusinessPoolsAndTransactionsExplicitlySeparate() {
+        var platform=context.getBean("platformJdbcTemplate",org.springframework.jdbc.core.JdbcTemplate.class);
+        var business=context.getBean("computeJdbcTemplate",org.springframework.jdbc.core.JdbcTemplate.class);
+        assertEquals(databases.platformName(),platform.queryForObject("SELECT DATABASE()",String.class));
+        assertEquals(databases.businessName(),business.queryForObject("SELECT DATABASE()",String.class));
+        assertSame(context.getBean("computeDataSource"),store.jdbc().getDataSource());
+        assertNotSame(platform.getDataSource(),business.getDataSource());
+        assertSame(context.getBean("computeTransactionManager"),store.transactionManager());
+        assertSame(platform.getDataSource(),context.getBean("transactionManager",org.springframework.jdbc.datasource.DataSourceTransactionManager.class).getDataSource());
+        assertEquals("+00:00",business.queryForObject("SELECT @@session.time_zone",String.class));
+    }
 
     @Test
     void exposesComputeActionContractsConstraintsAndActualReceipts() {
@@ -202,6 +216,24 @@ class ComputeMysqlSmokeTest {
                 databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?", rule.get("status"), rule.get("id"));
             }
         }
+    }
+
+    @Test
+    void resourceQueriesExposeReadOnlyUsageAndCapacityForecasts() {
+        var headers=adminHeaders();
+        JsonNode groups=get("/api/compute/groups?evidenceAsOf=2026-11-06T10:00:00Z",headers);
+        assertEquals(0,groups.path("code").asInt(-1),groups.toString());
+        assertFalse(groups.path("data").path("ledgerIsHistorical").asBoolean(true));
+        assertFalse(groups.path("data").path("authorizesExecution").asBoolean(true));
+        JsonNode b=null;for(var g:groups.path("data").path("groups"))if("B".equals(g.path("code").asText()))b=g;
+        assertNotNull(b);assertEquals(2,b.path("holderUsage").path("usedGpuUuids").size());
+        assertEquals(2,b.path("pendingUsage").path("retainedGpuUuids").size());
+        assertEquals(1,b.path("pendingRequest").path("requestId").asLong());
+        JsonNode p=get("/api/compute/capacity?jobId=1&pausedDeploymentId=2&restoreRevisionId=2",headers);
+        assertEquals(0,p.path("code").asInt(-1),p.toString());
+        assertEquals(72L*1073741824,p.path("data").path("projectedBytes").path("memoryBytes").asLong());
+        assertEquals(88L*1073741824,p.path("data").path("restore").path("projectedBytes").path("memoryBytes").asLong());
+        assertFalse(p.path("data").path("authorizesExecution").asBoolean(true));
     }
 
     @Test

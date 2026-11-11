@@ -16,7 +16,7 @@ final class ComputeCapacityQuery {
     private final ObjectMapper json;
     ComputeCapacityQuery(ComputeDatabase.Store store,ObjectMapper json){this.store=store;this.json=json;}
     Map<String,Object> preview(String nodeKey,Long jobId,Long pausedDeploymentId,Long restoreRevisionId) {
-        var tx=new org.springframework.transaction.support.TransactionTemplate(new org.springframework.jdbc.datasource.DataSourceTransactionManager(Objects.requireNonNull(store.jdbc().getDataSource())));
+        var tx=store.transactions();
         tx.setReadOnly(true);
         return tx.execute(status->calculate(nodeKey,jobId,pausedDeploymentId,restoreRevisionId));
     }

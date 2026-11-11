@@ -5,7 +5,11 @@ import com.bemodel.datasource.service.DatasourceService;
 import com.bemodel.datasource.service.SchemaScanService;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
+import com.zaxxer.hikari.HikariDataSource;
+import com.bemodel.common.BizException;
+import org.springframework.beans.factory.annotation.Qualifier;
+import java.net.URI;
+import java.util.Objects;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -17,19 +21,21 @@ final class ComputeDatasourceBootstrap implements ApplicationRunner {
     private final DatasourceService datasources;
     private final SchemaScanService scanner;
     private final ComputeDatabase.Store store;
-    private final DataSourceProperties properties;
+    private final HikariDataSource businessSource;
 
     ComputeDatasourceBootstrap(DatasourceService datasources, SchemaScanService scanner,
-                               ComputeDatabase.Store store, DataSourceProperties properties) {
+                               ComputeDatabase.Store store,@Qualifier("computeDataSource") HikariDataSource businessSource) {
         this.datasources = datasources;
         this.scanner = scanner;
         this.store = store;
-        this.properties = properties;
+        this.businessSource = businessSource;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        if (datasources.getByCode(CODE) == null) {
+        String database=URI.create(store.endpoint().jdbcUrl().substring("jdbc:".length())).getPath().substring(1);
+        var registered=datasources.getByCode(CODE);
+        if (registered == null) {
             var source = new Datasource();
             source.setDsCode(CODE);
             source.setDsName("A800 算力样例库");
@@ -37,10 +43,13 @@ final class ComputeDatasourceBootstrap implements ApplicationRunner {
             source.setDbType("MySQL");
             source.setHost(store.endpoint().host());
             source.setPort(store.endpoint().port());
-            source.setDbName("a800_compute");
-            source.setUsername(properties.determineUsername());
-            source.setPassword(properties.determinePassword());
+            source.setDbName(database);
+            source.setUsername(businessSource.getUsername());
+            source.setPassword(businessSource.getPassword());
             datasources.create(source);
+        } else if (!Objects.equals(registered.getHost(),store.endpoint().host())
+                || !Objects.equals(registered.getPort(),store.endpoint().port()) || !Objects.equals(registered.getDbName(),database)) {
+            throw new BizException("A800_COMPUTE 的登记地址与运行业务库不一致，请核对映射数据源；不会自动覆盖已有登记或凭据");
         }
         scanner.scan(CODE);
     }

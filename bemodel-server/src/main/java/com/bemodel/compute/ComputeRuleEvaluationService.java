@@ -56,8 +56,7 @@ final class ComputeRuleEvaluationService {
         ComputeRuleRunner.validateInput(stage, facts);
         JsonNode input = facts.deepCopy();
         JdbcTemplate jdbc = store.jdbc();
-        var transaction = new TransactionTemplate(new DataSourceTransactionManager(
-                Objects.requireNonNull(jdbc.getDataSource())));
+        var transaction = store.transactions();
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         return transaction.execute(status -> {
             var snapshot = runner.pinActive();

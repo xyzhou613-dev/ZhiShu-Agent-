@@ -95,7 +95,7 @@ final class ComputeGroupQuery {
     }
 
     List<Group> groups(String nodeKey, Instant evidenceAsOf) {
-        var tx=new org.springframework.transaction.support.TransactionTemplate(new org.springframework.jdbc.datasource.DataSourceTransactionManager(java.util.Objects.requireNonNull(store.jdbc().getDataSource())));
+        var tx=store.transactions();
         tx.setReadOnly(true);
         return tx.execute(status->readGroups(nodeKey,evidenceAsOf));
     }

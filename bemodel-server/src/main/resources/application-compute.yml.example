@@ -6,6 +6,16 @@ spring:
   flyway:
     locations: classpath:db/compute-platform
 
+# Business database is independent from the primary platform pool/transaction manager.
+# Empty URL/credentials inherit the resolved platform endpoint/credentials with schema a800_compute.
+compute:
+  datasource:
+    jdbc-url: ${COMPUTE_BUSINESS_JDBC_URL:}
+    username: ${COMPUTE_BUSINESS_USERNAME:}
+    password: ${COMPUTE_BUSINESS_PASSWORD:}
+    maximum-pool-size: 4
+    minimum-idle: 1
+
 bemodel:
   inspect:
     cron: "-"
