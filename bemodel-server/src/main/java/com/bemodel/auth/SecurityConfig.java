@@ -52,8 +52,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/cs/feedback")
                             .hasAnyRole("ADMIN", "EDITOR", "REVIEWER", "VIEWER")
                         // 评审动作放 REVIEWER：概念发布/废弃 + 本体版本发布（服务层另有评审门禁兜底）
-                        .requestMatchers(HttpMethod.POST, "/api/concept/transition/**", "/api/release/publish")
+                        .requestMatchers(HttpMethod.POST, "/api/concept/transition/**", "/api/release/publish", "/api/rule/transition/**")
                             .hasAnyRole("ADMIN", "EDITOR", "REVIEWER")
+                        .requestMatchers(HttpMethod.POST, "/api/compute/releases/*/sync", "/api/compute/rule-conflicts/*/resolve")
+                            .hasAnyRole("ADMIN", "REVIEWER")
                         // 知识库写操作（借鉴 5）：上传/编辑/删除限管理角色；发布/审批动作放 REVIEWER
                         //（服务层 transition 另有评审门禁+防自审兜底，对齐概念域）
                         .requestMatchers(HttpMethod.POST, "/api/knowledge/documents/*/transition",

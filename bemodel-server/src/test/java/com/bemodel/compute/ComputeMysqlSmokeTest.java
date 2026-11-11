@@ -119,6 +119,28 @@ class ComputeMysqlSmokeTest {
     }
 
     @Test
+    void publicationCreatesAnExecutionSetOnlyAfterPlatformCommit() {
+        var headers=adminHeaders();
+        var j=databases.business();
+        var previousRules=databases.platform().queryForList("SELECT id,status FROM bm_rule");
+        try {
+            databases.platform().update("UPDATE bm_rule SET status='PUBLISHED' WHERE engine='COMPUTE'");
+            JsonNode ready=get("/api/compute/releases/preflight",headers);
+            assertTrue(ready.path("data").path("ready").asBoolean(),ready.toString());
+            JsonNode release=post("/api/release/publish",Map.of("changeSummary","compute test","releasedBy","spoofed","force","true"),headers);
+            assertEquals(0,release.path("code").asInt(-1),release.toString());
+            assertEquals("admin",release.path("data").path("releasedBy").asText());
+            long id=release.path("data").path("id").asLong();
+            JsonNode history=get("/api/compute/releases",headers);
+            assertEquals(id,history.path("data").path("active").path("source_release_id").asLong(),history.toString());
+            assertEquals(14,j.queryForObject("SELECT COUNT(*) FROM rule_set_member WHERE rule_set_id=(SELECT rule_set_id FROM active_rule_set WHERE id=1)",Integer.class));
+            assertEquals(0,post("/api/compute/releases/"+id+"/sync",null,headers).path("code").asInt(-1));
+        } finally {
+            for(var rule:previousRules) databases.platform().update("UPDATE bm_rule SET status=? WHERE id=?",rule.get("status"),rule.get("id"));
+        }
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 

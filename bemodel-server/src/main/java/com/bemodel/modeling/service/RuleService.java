@@ -6,6 +6,7 @@ import com.bemodel.common.StateMachine;
 import com.bemodel.modeling.entity.Rule;
 import com.bemodel.modeling.mapper.RuleMapper;
 import com.bemodel.compute.ComputeRuleService;
+import com.bemodel.auth.CurrentUser;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -72,6 +73,8 @@ public class RuleService extends ServiceImpl<RuleMapper, Rule> {
         StateMachine.check(rule.getStatus(), target);
         validateCompute(rule);
         if ("COMPUTE".equals(rule.getEngine())) {
+            if (("PUBLISHED".equals(target) || "DEPRECATED".equals(target)) && !CurrentUser.hasAnyRole("REVIEWER","ADMIN"))
+                throw new BizException("算力规则发布或废弃需要评审员或管理员");
             boolean updated = lambdaUpdate().eq(Rule::getId, rule.getId()).eq(Rule::getVersion, rule.getVersion())
                     .eq(Rule::getStatus, rule.getStatus()).eq(Rule::getEngine, "COMPUTE")
                     .set(Rule::getStatus, target)

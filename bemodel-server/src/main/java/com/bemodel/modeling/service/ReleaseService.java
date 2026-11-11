@@ -3,6 +3,8 @@ package com.bemodel.modeling.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bemodel.auth.CurrentUser;
+import com.bemodel.compute.ComputeReleaseBridge;
+import org.springframework.beans.factory.ObjectProvider;
 import com.bemodel.common.BizException;
 import com.bemodel.modeling.entity.Action;
 import com.bemodel.modeling.entity.Release;
@@ -58,6 +60,7 @@ public class ReleaseService extends ServiceImpl<ReleaseMapper, Release> {
     private final OntologyCheckService ontologyCheckService;
     private final ObjectMapper objectMapper;
     private final RelationClosureMapper relationClosureMapper;
+    private final ObjectProvider<ComputeReleaseBridge> computeRelease;
 
     /** 传递闭包深度上限：撞上即截断并在发布结果里显式报告 capped */
     private static final int CLOSURE_MAX_DEPTH = 12;
@@ -76,6 +79,8 @@ public class ReleaseService extends ServiceImpl<ReleaseMapper, Release> {
         if (!CurrentUser.hasAnyRole("REVIEWER", "ADMIN")) {
             throw new BizException("本体版本发布需评审员（REVIEWER）或管理员（ADMIN）审批");
         }
+        ComputeReleaseBridge compute=computeRelease.getIfAvailable();
+        if (compute!=null) compute.lockPublication();
         List<OntologyCheckService.Defect> defects = ontologyCheckService.check();
         List<OntologyCheckService.Defect> blockers = ontologyCheckService.blockers(defects);
         if (!blockers.isEmpty()) {
@@ -108,6 +113,7 @@ public class ReleaseService extends ServiceImpl<ReleaseMapper, Release> {
             snapshot.put("metrics", metrics);
             snapshot.put("rules", rules);
             snapshot.put("actions", actions);
+            if (compute!=null) snapshot.put("compute",compute.prepare(rules));
             // 传递闭包物化（同事务）：推理在发布时，查询零推理成本
             snapshot.put("relationClosures", rebuildRelationClosures());
 
@@ -117,11 +123,12 @@ public class ReleaseService extends ServiceImpl<ReleaseMapper, Release> {
             release.setElementCount(concepts.size() + attributes.size() + relations.size()
                     + terms.size() + metrics.size() + rules.size() + actions.size());
             release.setSnapshotJson(objectMapper.writeValueAsString(snapshot));
-            release.setReleasedBy(releasedBy);
+            release.setReleasedBy(compute==null?releasedBy:CurrentUser.username());
             // 审批留痕（V29）：谁批准了这版口径，与 releasedBy 区分
             release.setApprovedBy(CurrentUser.username());
             release.setApprovedAt(LocalDateTime.now());
             save(release);
+            if (compute!=null) compute.stage(release);
             return release;
         } catch (Exception e) {
             throw new RuntimeException("发布失败: " + e.getMessage(), e);

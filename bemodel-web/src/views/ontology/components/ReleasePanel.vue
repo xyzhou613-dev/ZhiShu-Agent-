@@ -1,4 +1,5 @@
 <template>
+  <ComputeReleaseStatus v-if="conceptStore.concepts.some(c => c.code.startsWith('COMPUTE_'))" :key="releases[0]?.id || 'initial'" />
   <el-row :gutter="16">
     <!-- 左栏：版本发布 -->
     <el-col :span="10">
@@ -363,6 +364,9 @@
 
 <script setup>
 import { useUserStore } from '../../../store/user'
+import { useConceptStore } from '../../../store/concept'
+import ComputeReleaseStatus from './ComputeReleaseStatus.vue'
+const conceptStore = useConceptStore()
 const userStore = useUserStore()
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -749,6 +753,7 @@ const loadLlm = async () => {
 }
 
 onMounted(() => {
+  conceptStore.fetchAll()
   loadReleases()
   loadLlm()
 })
