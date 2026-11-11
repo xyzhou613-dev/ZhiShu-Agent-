@@ -13,6 +13,8 @@
 
 ## 启动
 
+申请提交、查询、取消和失败作业重试的调用示例见 [N-01 算力申请接口](A800-compute-request-api.md)。
+
 首次检出后，将 `bemodel-server/src/main/resources/application-compute.yml.example` 复制为同目录下的 `application-compute.yml`。实际配置由 Git 忽略。
 
 Windows 下可双击项目根目录的 `start-compute.cmd`，它会用 `compute` 配置打开后端和前端窗口。执行 `start-compute.cmd -CheckOnly` 可只检查本地启动工具和配置文件。数据库连接使用 Spring 解析后的算力配置，两套库共用同一 MySQL 地址和账号。
