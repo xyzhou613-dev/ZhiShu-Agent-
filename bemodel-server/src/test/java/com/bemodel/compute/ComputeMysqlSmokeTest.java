@@ -155,6 +155,24 @@ class ComputeMysqlSmokeTest {
     }
 
     @Test
+    void resourceQueriesExposeReadOnlyUsageAndCapacityForecasts() {
+        var headers=adminHeaders();
+        JsonNode groups=get("/api/compute/groups?evidenceAsOf=2026-11-06T10:00:00Z",headers);
+        assertEquals(0,groups.path("code").asInt(-1),groups.toString());
+        assertFalse(groups.path("data").path("ledgerIsHistorical").asBoolean(true));
+        assertFalse(groups.path("data").path("authorizesExecution").asBoolean(true));
+        JsonNode b=null;for(var g:groups.path("data").path("groups"))if("B".equals(g.path("code").asText()))b=g;
+        assertNotNull(b);assertEquals(2,b.path("holderUsage").path("usedGpuUuids").size());
+        assertEquals(2,b.path("pendingUsage").path("retainedGpuUuids").size());
+        assertEquals(1,b.path("pendingRequest").path("requestId").asLong());
+        JsonNode p=get("/api/compute/capacity?jobId=1&pausedDeploymentId=2&restoreRevisionId=2",headers);
+        assertEquals(0,p.path("code").asInt(-1),p.toString());
+        assertEquals(72L*1073741824,p.path("data").path("projectedBytes").path("memoryBytes").asLong());
+        assertEquals(88L*1073741824,p.path("data").path("restore").path("projectedBytes").path("memoryBytes").asLong());
+        assertFalse(p.path("data").path("authorizesExecution").asBoolean(true));
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 

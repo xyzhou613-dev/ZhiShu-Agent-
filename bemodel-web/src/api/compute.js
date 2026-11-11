@@ -12,3 +12,5 @@ export const syncComputeRelease = (id) => request.post(`/compute/releases/${id}/
 export const listComputeRuleConflicts = () => request.get('/compute/rule-conflicts')
 export const listComputeDataAssets = () => request.get('/compute/data-assets')
 export const updateComputeDataAsset = (code, body) => request.put(`/compute/data-assets/${encodeURIComponent(code)}`, body)
+export const queryComputeGroups = (params = {}) => request.get('/compute/groups', { params })
+export const queryComputeCapacity = (params = {}) => request.get('/compute/capacity', { params })
