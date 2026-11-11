@@ -42,4 +42,9 @@ final class ComputeRequestController {
     Result<ComputeRequestService.Request> cancel(@PathVariable long id) {
         return Result.ok(requests.cancel(id));
     }
+
+    @PostMapping("/{id}/jobs/{jobId}/retry")
+    Result<ComputeRequestService.Job> retry(@PathVariable long id, @PathVariable long jobId) {
+        return Result.ok(requests.retry(id, jobId));
+    }
 }

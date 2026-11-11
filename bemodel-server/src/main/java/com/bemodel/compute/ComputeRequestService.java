@@ -134,6 +134,54 @@ final class ComputeRequestService {
         });
     }
 
+    Job retry(long requestId, long jobId) {
+        JdbcTemplate jdbc = store.jdbc();
+        return transaction(jdbc).execute(status -> {
+            Request request = requireRequest(jdbc, requestId, true);
+            Job source = jdbc.query("SELECT * FROM compute_job WHERE id = ? AND request_id = ? FOR UPDATE",
+                    rows -> rows.next() ? readJob(rows) : null, jobId, requestId);
+            if (source == null) {
+                throw new BizException("申请下不存在该作业");
+            }
+            if (!"FAILED".equals(source.status()) || source.endedAt() == null) {
+                throw new BizException("仅可重试已结束的失败作业");
+            }
+
+            // Attempts are appended under the request lock. The first later attempt is the replay result.
+            Job successor = jdbc.query("""
+                    SELECT * FROM compute_job WHERE request_id = ? AND id > ? ORDER BY id LIMIT 1
+                    """, rows -> rows.next() ? readJob(rows) : null, requestId, jobId);
+            if (successor != null) {
+                return successor;
+            }
+            if (!"APPROVED".equals(request.status())) {
+                throw new BizException("仅已批准的申请可重试作业");
+            }
+            if (Boolean.TRUE.equals(jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM active_job WHERE request_id = ?)
+                        OR EXISTS(SELECT 1 FROM workflow_run WHERE job_id = ?)
+                        OR EXISTS(SELECT 1 FROM gpu_allocation WHERE job_id = ? AND status IN ('PENDING', 'OCCUPIED'))
+                    """, Boolean.class, requestId, jobId, jobId))) {
+                throw new BizException("申请仍有关联的活跃作业、执行流程或有效分配");
+            }
+
+            var key = new GeneratedKeyHolder();
+            jdbc.update(connection -> {
+                var statement = connection.prepareStatement("""
+                        INSERT INTO compute_job (request_id, task_type_id, effective_gpu_count,
+                                                 effective_resource_spec, created_at)
+                        SELECT request_id, task_type_id, effective_gpu_count, effective_resource_spec, UTC_TIMESTAMP(6)
+                        FROM compute_job WHERE id = ?
+                        """, Statement.RETURN_GENERATED_KEYS);
+                statement.setLong(1, jobId);
+                return statement;
+            }, key);
+            long retryId = Objects.requireNonNull(key.getKey()).longValue();
+            jdbc.update("INSERT INTO active_job (request_id, job_id) VALUES (?, ?)", requestId, retryId);
+            return jdbc.queryForObject("SELECT * FROM compute_job WHERE id = ?", (row, index) -> readJob(row), retryId);
+        });
+    }
+
     private static TransactionTemplate transaction(JdbcTemplate jdbc) {
         return new TransactionTemplate(new DataSourceTransactionManager(
                 Objects.requireNonNull(jdbc.getDataSource())));

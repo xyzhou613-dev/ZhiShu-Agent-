@@ -260,6 +260,96 @@ class ComputeMysqlSmokeTest {
                 .path("request").path("id").asLong());
     }
 
+    @Test
+    void retriesAFailedJobOnceUnderConcurrentRequests() throws Exception {
+        var headers = adminHeaders();
+        FailedJob failed = failedJob(headers);
+        var responses = concurrently(() -> ok(post(failed.retryPath(), null, headers)));
+        JsonNode replacement = responses.getFirst();
+        long replacementId = replacement.path("id").asLong();
+        assertTrue(replacementId > failed.id());
+        assertEquals(responses.getLast(), replacement);
+        assertEquals(replacement, ok(post(failed.retryPath(), null, headers)));
+        assertEquals("PENDING", replacement.path("status").asText());
+        assertEquals(failed.requestId(), replacement.path("requestId").asLong());
+        assertEquals(1, replacement.path("taskTypeId").asLong());
+        assertEquals(2, replacement.path("effectiveGpuCount").asInt());
+        assertEquals(12345678, replacement.path("effectiveResourceSpec").path("memoryBytes").asLong());
+        assertTrue(replacement.path("startedAt").isNull());
+        assertTrue(replacement.path("endedAt").isNull());
+
+        JsonNode detail = ok(get("/api/compute/requests/" + failed.requestId(), headers));
+        assertEquals("APPROVED", detail.path("request").path("status").asText());
+        assertEquals(replacement, detail.path("currentJob"));
+        assertEquals(2, detail.path("jobs").size());
+        assertEquals(failed.id(), detail.path("jobs").get(1).path("id").asLong());
+        assertEquals("FAILED", detail.path("jobs").get(1).path("status").asText());
+        assertEquals(0, databases.business().queryForObject(
+                "SELECT COUNT(*) FROM gpu_allocation WHERE job_id = ?", Integer.class, replacementId));
+    }
+
+    @Test
+    void rejectsRetryWhenTheRequestOrSourceJobIsIneligible() {
+        var headers = adminHeaders();
+        assertEquals("仅可重试已结束的失败作业",
+                error(post("/api/compute/requests/1/jobs/1/retry", null, headers)));
+        FailedJob failed = failedJob(headers);
+        assertEquals("申请下不存在该作业",
+                error(post("/api/compute/requests/1/jobs/" + failed.id() + "/retry", null, headers)));
+
+        var jdbc = databases.business();
+        jdbc.update("UPDATE compute_request SET status = 'SUBMITTED' WHERE id = ?", failed.requestId());
+        assertEquals("仅已批准的申请可重试作业", error(post(failed.retryPath(), null, headers)));
+        jdbc.update("UPDATE compute_request SET status = 'APPROVED' WHERE id = ?", failed.requestId());
+        jdbc.update("UPDATE compute_job SET ended_at = NULL WHERE id = ?", failed.id());
+        assertEquals("仅可重试已结束的失败作业", error(post(failed.retryPath(), null, headers)));
+        jdbc.update("UPDATE compute_job SET ended_at = UTC_TIMESTAMP(6) WHERE id = ?", failed.id());
+
+        String blocked = "申请仍有关联的活跃作业、执行流程或有效分配";
+        jdbc.update("INSERT INTO active_job (request_id, job_id) VALUES (?, ?)", failed.requestId(), failed.id());
+        assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
+        jdbc.update("DELETE FROM active_job WHERE request_id = ?", failed.requestId());
+
+        jdbc.update("INSERT INTO gpu_allocation (job_id, group_id, memory_bytes) VALUES (?, 4, 0)", failed.id());
+        assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
+        jdbc.update("UPDATE gpu_allocation SET status = 'OCCUPIED' WHERE job_id = ?", failed.id());
+        assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
+        jdbc.update("UPDATE gpu_allocation SET status = 'RELEASED' WHERE job_id = ?", failed.id());
+
+        jdbc.update("INSERT INTO evidence_snapshot (as_of) VALUES (UTC_TIMESTAMP(6))");
+        jdbc.update("""
+                INSERT INTO decision (request_id, kind, outcome, as_of, snapshot_id)
+                SELECT ?, 'SUBMISSION', 'APPROVED', as_of, id FROM evidence_snapshot ORDER BY id DESC LIMIT 1
+                """, failed.requestId());
+        jdbc.update("""
+                INSERT INTO workflow_run (request_id, decision_id, group_id, job_id)
+                SELECT request_id, id, 4, ? FROM decision WHERE request_id = ?
+                """, failed.id(), failed.requestId());
+        assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM compute_job WHERE request_id = ?", Integer.class, failed.requestId()));
+    }
+
+    private FailedJob failedJob(HttpHeaders headers) {
+        long requestId = ok(post("/api/compute/requests", requestBody(UUID.randomUUID().toString()), headers))
+                .path("id").asLong();
+        var jdbc = databases.business();
+        jdbc.update("UPDATE compute_request SET status = 'APPROVED' WHERE id = ?", requestId);
+        jdbc.update("""
+                INSERT INTO compute_job (request_id, task_type_id, effective_gpu_count, effective_resource_spec,
+                                         status, started_at, ended_at)
+                VALUES (?, 1, 2, JSON_OBJECT('memoryBytes', 12345678), 'FAILED', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+                """, requestId);
+        long jobId = jdbc.queryForObject("SELECT id FROM compute_job WHERE request_id = ?", Long.class, requestId);
+        return new FailedJob(requestId, jobId);
+    }
+
+    private record FailedJob(long requestId, long id) {
+        String retryPath() {
+            return "/api/compute/requests/" + requestId + "/jobs/" + id + "/retry";
+        }
+    }
+
     private static Map<String, Object> requestBody(String key) {
         return new HashMap<>(Map.of("employeeId", 1, "projectId", 1, "taskTypeId", 1,
                 "clientRequestKey", key, "requestedGpuCount", 1,
