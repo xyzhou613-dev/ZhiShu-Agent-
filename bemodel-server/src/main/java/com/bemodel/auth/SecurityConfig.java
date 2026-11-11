@@ -68,6 +68,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/cs/feedback/list").hasAnyRole("ADMIN", "EDITOR")
                         // 澄清任务列表是维护者视图（含用户原话证据），不开放 REVIEWER/VIEWER
                         .requestMatchers(HttpMethod.GET, "/api/cs/clarify/list").hasAnyRole("ADMIN", "EDITOR")
+                        .requestMatchers("/api/compute/requests", "/api/compute/requests/**")
+                            .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("ADMIN", "EDITOR", "REVIEWER", "VIEWER")
                         .requestMatchers("/api/**").hasAnyRole("ADMIN", "EDITOR")
                         .anyRequest().permitAll())
