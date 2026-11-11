@@ -13,13 +13,13 @@ compute profile 下启用，业务库 V10 扩展原 compute_queue：绑定节点
 | GET /api/compute/queue/{requestId} | 查看该申请的队列记录 |
 | POST /api/compute/queue/reevaluate | `{nodeKey}` 串行重新检查节点待调度队列 |
 
-nodeKey / requestId 校验沿用 N-03。不能传入 priority、submittedAt、targetGroupId、gpuCount 或 jobId 改变排队顺序。只有 SUBMITTED / APPROVED 且无有效分配的待调度申请可入队；已有节点绑定时不能移到其他节点。
+nodeKey / requestId 校验沿用 N-03。不能传入 priority、submittedAt、targetGroupId、gpuCount 或 jobId 改变排队顺序。只有 SUBMITTED / APPROVED 且无有效分配的待调度申请可入队；已有节点绑定时不能移到其他节点。尚未产生作业时可入队；已有作业时须是未发生过分配的当前 PENDING 作业，否则应先按 N-01 完成失败作业重试。重评发现不合格作业会将队列置为 CANCELLED / NEEDS_PENDING_JOB，避免阻挡队首。
 
 排序固定为 priority 降序、原申请 submitted_at 升序、requestId 升序。同时间以编号兜底。训练等级取生效集合的 trainingPriority，其他类型取登记等级；重评不会将时间改成“现在”使申请掉到队尾。单节点所有队列写入先锁节点，再按 ID 锁卡组和申请，确保同组及跨组容量入口串行。
 
 返回字段包括 requestId、nodeId、targetGroupId/Code、priority、submittedAt、status、reasonCode、lastSelectionId、lastEvaluatedAt、nextEvaluateAt、position、head、authorizesExecution=false。position/head 只对 WAITING 且有目标的记录有意义；五卡无目标保留 WAITING，position 为空、head=false。队首仅表示排序第一，不表示证据和容量已经通过。
 
-status 支持 WAITING / RESERVED / CANCELLED。RESERVED 由有效分配或后续 N-07 更新；本接口不创建分配。reasonCode 是最近检查的等待原因，完整依据见 lastSelectionId 对应的 [N-04 记录](A800-compute-target-selection-api.md)。
+status 支持 WAITING / RESERVED / CANCELLED。RESERVED 由有效分配或 [N-07 事务预留](A800-compute-reservation-api.md) 更新；本接口不创建分配。reasonCode 是最近检查的等待原因，完整依据见 lastSelectionId 对应的 [N-04 记录](A800-compute-target-selection-api.md)。
 
 列表按队列顺序分页，pageNum 默认 1，pageSize 默认 20、最大 200；小于 1 的页码或页大小归一化为 1 / 20。
 
@@ -40,7 +40,7 @@ compute:
     node-key: a800-demo
 ```
 
-周期默认 30 秒；nextEvaluateAt 为默认策略的建议检查时间，手动或事件可提前重评。资源写入模块应在事务提交后发布内部 ResourceChanged(nodeKey) 事件，或调用重评接口。自动功能开启后，事件立即触发检查；失败记录日志，下一轮轮询重试。未接入采集器时，直接改数据库不能自动发布事件，定时轮询仍会重新读取。
+周期默认 30 秒；nextEvaluateAt 为默认策略的建议检查时间，手动或事件可提前重评。资源写入模块应在事务提交后发布内部 ResourceChanged(nodeKey) 事件，或调用重评接口。自动功能开启后，事件立即触发检查；失败记录日志，下一轮轮询重试。N-07 成功提交预留后会发布该事件。轮询和事件仅重评，不自动创建预留。未接入采集器时，直接改数据库不能自动发布事件，定时轮询仍会重新读取。
 
 ## PowerShell
 

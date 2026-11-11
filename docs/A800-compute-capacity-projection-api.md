@@ -33,7 +33,7 @@ overallResult 按 ERROR、FAIL、PASS 汇总，对应 feasibility=UNKNOWN、INFE
 
 ## 启用、鉴权和接口
 
-使用 compute profile，业务库最新迁移为 V9，增加 capacity_projection_run、capacity_projection_check、capacity_projection_evidence。旧 GET /api/compute/capacity 保留只读行为，新接口用于保存可追溯记录。
+使用 compute profile，业务库最新迁移为 V11，N-05 的 V9 增加 capacity_projection_run、capacity_projection_check、capacity_projection_evidence。旧 GET /api/compute/capacity 保留只读行为，新接口用于保存可追溯记录。
 
 ADMIN / EDITOR 可使用三个接口，VIEWER / REVIEWER 无权调用。先发布并激活完整规则集合，方法见 [N-02 文档](A800-compute-rule-evaluation-api.md)。
 

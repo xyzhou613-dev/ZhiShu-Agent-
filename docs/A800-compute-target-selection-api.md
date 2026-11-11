@@ -31,7 +31,7 @@ queuePersisted=false、authorizesExecution=false 始终返回。WAITING 是本�
 
 ## 启用和鉴权
 
-使用 compute profile，业务库迁移到最新版本（N-04 初始为 V8，N-05 后为 V9）。ADMIN / EDITOR 可以调用全部三个接口；VIEWER / REVIEWER 无权读取或提交。
+使用 compute profile，业务库迁移到最新版本（N-04 初始为 V8，N-07 后为 V11）。ADMIN / EDITOR 可以调用全部三个接口；VIEWER / REVIEWER 无权读取或提交。
 
 ```powershell
 $baseUrl = 'http://127.0.0.1:18080'

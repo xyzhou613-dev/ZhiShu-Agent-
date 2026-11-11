@@ -1,6 +1,6 @@
 # A800 算力版任务清单与人工验收
 
-基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库通过 V5 增加规则运行记录，通过 V6/V7 增加证据快照保护和运行证据关联，通过 V8 保存目标组选择，通过 V9 保存容量投影、逐条检查及证据引用。
+基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库迁移到 V11：V5 增加规则运行记录，V6/V7 增加证据快照保护和运行证据关联，V8 保存目标组选择，V9 保存容量投影，V10 扩展队列，V11 保存事务预留回执并补充正式决策审计。
 
 ## 任务清单
 
@@ -15,6 +15,7 @@
 - [x] N-04：按生效 R-04 和服务端快照选择目标组，保存等待及抢占待核对结果；实际入队与仲裁留给 N-06。
 - [x] N-05：保存方案及恢复容量投影、GPU/显存候选、未知信息和逐条检查；不改变预留、持有或执行状态。
 - [x] N-06：节点队列、稳定排序、串行重评、排队取消及可配置的轮询和资源变化触发，见 [队列接口](A800-compute-queue-api.md)。
+- [x] N-07：固定规则与新证据，事务核对队首及容量，保存正式准入、提交决策和 PENDING 预留；保留实际部署持有，见 [事务预留接口](A800-compute-reservation-api.md)。
 - [ ] 人工在浏览器逐项核对建模页面；自动数据库与 HTTP 验证见文末命令。
 
 ## 启动
@@ -52,7 +53,7 @@ $env:APP_SECRET_KEY = '<数据源凭证加密密钥>'
 
 ## 人工验收
 
-1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V9，应有 40 张业务表。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`；N-03 复用证据表并新增 `rule_evaluation_check_evidence`；N-04 新增目标选择表；N-05 新增 `capacity_projection_run`、`capacity_projection_check` 和 `capacity_projection_evidence`。
+1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V11，应有 41 张业务表（不含 Flyway 历史表）。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`；N-03 复用证据表并新增 `rule_evaluation_check_evidence`；N-04 新增目标选择表；N-05 新增 `capacity_projection_run`、`capacity_projection_check` 和 `capacity_projection_evidence`；N-06 扩展原队列；N-07 新增 `compute_reservation_receipt`。
 2. 本体管理应出现「算力管理」域，含 18 类概念。参照 `docs/A800-compute-ontology-checklist.md` 核对 138 项属性和 30 条标准关系；含用户自建关系的库允许多于 30 条。打开数据源与映射页面，确认 `A800_COMPUTE` 可见，`COMPUTE_GPU_DEVICE.UUID` 对应 `gpu_device.gpu_uuid`。
 3. 调用已登录的查询。固定样例观测时间为 `2026-11-06T10:00:00Z`，有效 30 秒。接口以当前账本为准，`evidenceAsOf` 只控制读取和校验哪一时点的观测。
 
@@ -85,7 +86,7 @@ $env:COMPUTE_MYSQL_SMOKE = 'true'
 mvn '-Dtest=ComputeOntologyMigrationTest,ComputeMysqlSmokeTest,ComputeProfileTest,ComputeDatabaseTest,ComputeGroupQueryTest' test
 ```
 
-第一轮的 `rule_version`、`decision` 和执行相关表提供后续落库结构。M-04 已支持规则快照发布和激活，N-02 已支持调用方事实的独立运行记录；调度审批、正式申请决策、容器执行和真实采集由后续条目接入。
+第一轮的 `rule_version`、`decision` 和执行相关表提供后续落库结构。M-04 已支持规则快照发布和激活，N-02 支持调用方事实的独立运行记录，N-07 已接入服务端证据及正式准入、提交决策。实际激活、容器执行和真实采集由后续条目接入。
 
 `ComputeOntologyMigrationTest` 覆盖空库到 V5、V3 到 V5、再次执行无新增迁移、原始概念/属性 ID 和字段映射/快照保留、30 条标准关系及自建关系同名冲突。`ComputeMysqlSmokeTest` 覆盖登录、18 类概念详情、新属性与关系、数据源目录和八卡查询。
 
@@ -146,3 +147,9 @@ MySQL 8.4 随机隔离库验证了业务库 V5、再次迁移无变化、六阶�
 14 项 HTTP 冒烟验证三个新接口、PLAN / RESTORE、详情及分页、角色限制，并回归旧只读容量接口、N-01～N-04、规则发布及卡组查询。另回归规则执行/定义、快照、数据库配置及 profile；空库初始化检查验证 40 张业务表、四组八卡和再次迁移无变化。
 
 测试使用 MySQL 8.4 随机隔离库，未迁移现有应用库、未刷新共享观测、未发布共享规则。JSON、PowerShell 示例、接口路径及文档链接已核对。缺少恢复每卡显存和互联需求时仍返回 UNKNOWN，不将资源投影当作预留、停服或恢复执行许可。
+
+## N-06 / N-07 验证记录（2026-11-11）
+
+13 个定向测试类共 57 项通过，失败、错误及跳过均为 0。包括规则判定、规则快照、选组、容量、队列、事务预留、配置与查询回归；HTTP 冒烟共 16 项。MySQL 8.4 随机临时库验证 V9→V10、V10→V11、空库到最新版本及再次迁移无变化。预留验证覆盖并发重复提交、取消竞争、跨组容量竞争、待生效与实际持有分离、恢复修订固定、证据链引用约束、写入失败整体回滚和历史版本查询。首次预留数据库测试发现决策 INSERT 占位符错误，修复后重新执行并通过，未将失败批次计为通过。
+
+队列接口见 [N-06](A800-compute-queue-api.md)，正式决策与回执见 [N-07](A800-compute-reservation-api.md)。测试使用的有效观测和较长有效期只存在于隔离库；共享样例未刷新，现有应用库未迁移。自动重评默认关闭，浏览器人工验收仍待进行。
