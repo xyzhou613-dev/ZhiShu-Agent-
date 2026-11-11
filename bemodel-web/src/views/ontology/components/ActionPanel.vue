@@ -1,5 +1,6 @@
 <template>
   <el-card>
+    <ComputeNormDetails v-if="actions.some(a => a.conceptCode?.startsWith('COMPUTE_'))" />
     <div class="filter-bar">
       <el-select
         v-model="filterConcept"
@@ -116,6 +117,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import ComputeNormDetails from './ComputeNormDetails.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listActions,

@@ -104,6 +104,21 @@ class ComputeMysqlSmokeTest {
     private JwtService jwt;
 
     @Test
+    void exposesComputeActionContractsConstraintsAndActualReceipts() {
+        var headers=adminHeaders();
+        JsonNode actions=get("/api/compute/action-contracts",headers);
+        assertEquals(0,actions.path("code").asInt(-1),actions.toString());
+        assertEquals(10,actions.path("data").size());
+        JsonNode constraints=get("/api/compute/constraints",headers);
+        assertEquals(0,constraints.path("code").asInt(-1),constraints.toString());
+        assertEquals(26,constraints.path("data").size());
+        JsonNode empty=get("/api/compute/actions/results?operationKey=never-executed",headers);
+        assertEquals(0,empty.path("code").asInt(-1));
+        assertTrue(empty.path("data").isEmpty());
+        assertEquals(0,databases.business().queryForObject("SELECT COUNT(*) FROM execution_action",Integer.class));
+    }
+
+    @Test
     void migratesBothSchemasAndServesMappedSample() {
         var headers = adminHeaders();
 
@@ -310,8 +325,10 @@ class ComputeMysqlSmokeTest {
         assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
         jdbc.update("DELETE FROM active_job WHERE request_id = ?", failed.requestId());
 
-        jdbc.update("INSERT INTO gpu_allocation (job_id, group_id, memory_bytes) VALUES (?, 4, 0)", failed.id());
+        jdbc.update("INSERT INTO gpu_allocation (job_id, group_id, memory_bytes) VALUES (?, 1, 0)", failed.id());
         assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
+        jdbc.update("INSERT INTO allocation_gpu(allocation_id,gpu_id) SELECT id,1 FROM gpu_allocation WHERE job_id=?",failed.id());
+        jdbc.update("INSERT INTO allocation_gpu(allocation_id,gpu_id) SELECT id,2 FROM gpu_allocation WHERE job_id=?",failed.id());
         jdbc.update("UPDATE gpu_allocation SET status = 'OCCUPIED' WHERE job_id = ?", failed.id());
         assertEquals(blocked, error(post(failed.retryPath(), null, headers)));
         jdbc.update("UPDATE gpu_allocation SET status = 'RELEASED' WHERE job_id = ?", failed.id());
