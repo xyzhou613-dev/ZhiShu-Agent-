@@ -70,15 +70,11 @@ public final class ComputeRuleEvaluator {
         JsonNode deployments = object(f, restoring ? "otherDeploymentBytes" : "continuingDeploymentBytes");
         JsonNode reservations = object(f, "effectiveReservationBytes");
         JsonNode added = object(f, restoring ? "restoreDeploymentBytes" : "newReservationBytes");
-        Map<String, Long> projected = new LinkedHashMap<>();
-        boolean enough = true;
-        for (String resource : RESOURCES) {
-            long sum = Math.addExact(Math.addExact(number(deployments, resource), number(reservations, resource)), number(added, resource));
-            projected.put(resource, sum);
-            enough &= sum <= number(cap, resource);
-        }
-        return outcome(enough, restoring ? "RECOVERY_NO_CAPACITY" : "QUEUE_NO_CAPACITY", Map.of("projectedBytes", projected));
+        var projected=restoring?ComputeResourceMath.restoreProjection(bytes(deployments),bytes(reservations),bytes(added)):
+                ComputeResourceMath.projection(bytes(deployments),bytes(reservations),bytes(added));
+        return outcome(projected.within(bytes(cap)), restoring ? "RECOVERY_NO_CAPACITY" : "QUEUE_NO_CAPACITY", Map.of("projectedBytes", projected.values()));
     }
+    private static ComputeResourceMath.Bytes bytes(JsonNode n){return new ComputeResourceMath.Bytes(number(n,"memoryBytes"),number(n,"temporaryBytes"),number(n,"persistentBytes"));}
 
     static Check resources(JsonNode f) {
         long requiredVram = positive(f, "vramBytesPerGpu");
@@ -102,7 +98,7 @@ public final class ComputeRuleEvaluator {
             JsonNode flex = object(f, "flex");
             boolean healthy = bool(flex, "healthy"), fresh = bool(flex, "evidenceFresh");
             boolean held = bool(flex, "held"), reserved = bool(flex, "reserved"), occupied = bool(flex, "occupied");
-            if (healthy && fresh && !held && !reserved && !occupied) target = "FLEX";
+            if (healthy && fresh && ComputeResourceMath.groupAvailable(held,reserved) && !occupied) target = "FLEX";
         }
         return pass(Map.of("targetGroup", target, "requiresFeasibilityChecks", List.of("R-02", "R-03", "R-14")));
     }
@@ -110,16 +106,14 @@ public final class ComputeRuleEvaluator {
     static Check queueHead(JsonNode f) {
         long requestId = positive(f, "requestId");
         JsonNode queue = array(f, "queue", false);
-        record Entry(long id, long priority, Instant submitted) {}
-        List<Entry> entries = new ArrayList<>();
+        List<ComputeResourceMath.QueueEntry> entries = new ArrayList<>();
         Set<Long> ids = new HashSet<>();
         for (JsonNode row : queue) {
             long id = positive(row, "requestId");
             require(ids.add(id), "队列申请编号不能重复");
-            entries.add(new Entry(id, number(row, "priority"), time(row, "submittedAt")));
+            entries.add(new ComputeResourceMath.QueueEntry(id, number(row, "priority"), time(row, "submittedAt")));
         }
-        entries.sort(Comparator.comparingLong(Entry::priority).reversed().thenComparing(Entry::submitted).thenComparingLong(Entry::id));
-        List<Long> order = entries.stream().map(Entry::id).toList();
+        List<Long> order = ComputeResourceMath.queueOrder(entries);
         return outcome(!order.isEmpty() && order.getFirst() == requestId, "QUEUE_NOT_HEAD", Map.of("queueOrder", order));
     }
 
@@ -130,8 +124,7 @@ public final class ComputeRuleEvaluator {
         boolean allowed = bool(f, "preemptible");
         long residentCount = positive(f, "deploymentGpuCount");
         long requestPriority = number(f, "requestPriority"), deploymentPriority = number(f, "deploymentPriority");
-        return outcome("TRAIN".equals(taskType) && "DEPLOYMENT".equals(kind) && allowed && Set.of("A", "B").contains(group) && residentCount > 1
-                && requestPriority > deploymentPriority, "QUEUE_NOT_PREEMPTIBLE", Map.of());
+        return outcome(ComputeResourceMath.preemptible(kind,taskType,group,residentCount,allowed,requestPriority,deploymentPriority), "QUEUE_NOT_PREEMPTIBLE", Map.of());
     }
 
     static Check health(JsonNode f) {
@@ -166,8 +159,7 @@ public final class ComputeRuleEvaluator {
         Instant asOf = time(f, "asOf");
         for (JsonNode row : array(f, "evidence", true)) {
             Instant observed = time(row, "observedAt"), until = time(row, "validUntil");
-            if (observed.isAfter(asOf) || until.isBefore(asOf)
-                    || Duration.between(observed, asOf).compareTo(Duration.ofSeconds(maxAge)) > 0) return fail("QUEUE_STALE_EVIDENCE");
+            if (!ComputeResourceMath.evidenceValid(observed,until,asOf,maxAge)) return fail("QUEUE_STALE_EVIDENCE");
         }
         return pass(Map.of("asOf", asOf.toString(), "maxAgeSeconds", maxAge));
     }
@@ -226,7 +218,9 @@ public final class ComputeRuleEvaluator {
                 checks.put("R-02", capacity(object(candidate, "capacityFacts"), false));
                 checks.put("R-03", resources(object(candidate, "resourceFacts")));
                 checks.put("R-14", health(object(candidate, "healthFacts")));
-                if (checks.values().stream().filter(Check.class::isInstance).map(Check.class::cast).allMatch(c -> c.result() == Status.PASS)) {
+                if (ComputeResourceMath.qualifiedHandoff(target,
+                        ((Check)checks.get("R-12")).result()==Status.PASS,((Check)checks.get("R-02")).result()==Status.PASS,
+                        ((Check)checks.get("R-03")).result()==Status.PASS,((Check)checks.get("R-14")).result()==Status.PASS)) {
                     return pass(Map.of("outcome", "HANDOFF", "nextAction", "RESERVE_NEXT_BEFORE_HANDOVER", "checks", checks));
                 }
             }

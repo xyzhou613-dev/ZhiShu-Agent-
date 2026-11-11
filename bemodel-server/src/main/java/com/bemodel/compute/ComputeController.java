@@ -14,7 +14,8 @@ import java.util.List;
 @Profile("compute")
 @RequestMapping("/api/compute")
 final class ComputeController {
-    record GroupOverview(String nodeKey, Instant evidenceAsOf, List<ComputeGroupQuery.Group> groups) {}
+    record GroupOverview(String nodeKey, Instant evidenceAsOf, List<ComputeGroupQuery.Group> groups,
+                         Instant ledgerReadAt,boolean ledgerIsHistorical,String formulaVersion,boolean authorizesExecution) {}
 
     private final ComputeGroupQuery query;
 
@@ -26,6 +27,6 @@ final class ComputeController {
     Result<GroupOverview> groups(@RequestParam(defaultValue = "a800-demo") String nodeKey,
                                  @RequestParam(required = false) Instant evidenceAsOf) {
         Instant at = evidenceAsOf == null ? Instant.now() : evidenceAsOf;
-        return Result.ok(new GroupOverview(nodeKey, at, query.groups(nodeKey, at)));
+        return Result.ok(new GroupOverview(nodeKey, at, query.groups(nodeKey, at),Instant.now(),false,ComputeVersions.FORMULAS,false));
     }
 }

@@ -1,5 +1,6 @@
 <template>
   <div class="page">
+    <ComputeResourceOverview v-if="datasources.some(ds => ds.dsCode === 'A800_COMPUTE')" />
     <ComputeDataAssets v-if="datasources.some(ds => ds.dsCode === 'A800_COMPUTE')" />
     <!-- 数据源卡片行 -->
     <div class="ds-cards" v-loading="loadingDs">
@@ -222,6 +223,7 @@
 
 <script setup>
 import ComputeDataAssets from './ComputeDataAssets.vue'
+import ComputeResourceOverview from './ComputeResourceOverview.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElLoading } from 'element-plus'
 import {
