@@ -4,7 +4,7 @@
 
 ## 启用和鉴权
 
-以 `compute` profile 启动后端，业务库迁移到 V7。V6 增加快照上下文、封存及不可变保护；V7 将运行、逐条检查和证据关联起来。保留 V1～V5，旧 CALLER 运行记录不改写。
+以 `compute` profile 启动后端，业务库迁移到最新版本（N-03 初始为 V7，N-04 后为 V8）。V6 增加快照上下文、封存及不可变保护；V7 将运行、逐条检查和证据关联起来。保留 V1～V5，旧 CALLER 运行记录不改写。
 
 以下接口限 ADMIN / EDITOR，登录后使用 Bearer Token。成功响应为 `code=0,msg="ok",data=...`；业务错误沿用 HTTP 200、`code=500`；未登录返回 401，无权限返回 403。
 
@@ -40,7 +40,7 @@ $runUrl = "$baseUrl/api/compute/rule-evaluations"
 
 | 证据 | 保存内容 |
 |---|---|
-| 平台账本 | 申请规格、任务类型及状态；节点容量；卡组指针；开放持有；PENDING / OCCUPIED 分配及其资源需求；分配用卡；持有部署的修订与资源基线；队列记录 |
+| 平台账本 | 申请规格、任务类型及状态；当前作业的有效规格（存在时）；节点容量；卡组指针；开放持有；PENDING / OCCUPIED 分配及其资源需求；分配用卡；持有部署的修订与资源基线；队列记录 |
 | GPU 观测 | 源观测编号、来源、节点内 GPU 身份、healthy、occupied、原 observedAt / validUntil、状态及可用性原因 |
 | 节点水位 | 源观测编号、来源、节点身份、memoryUsedBytes / temporaryUsedBytes / persistentUsedBytes、原时间及状态 |
 | 规则和来源配置 | 固定 ruleSetId，保存 14 条执行版本及定义版本引用，冻结两类观测的来源、登记版本和时效配置 |
