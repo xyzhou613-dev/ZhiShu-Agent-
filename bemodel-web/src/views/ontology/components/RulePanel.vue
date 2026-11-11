@@ -1,5 +1,9 @@
 <template>
   <el-card>
+    <el-alert v-if="computeCoverage" :type="computeCoverage.missing.length ? 'warning' : 'info'" :closable="false"
+      :title="`算力规则检查：${computeCoverage.available}/14 已接入`"
+      :description="computeCoverage.missing.length ? `以下规则缺失或配置不兼容，请核对：${computeCoverage.missing.join('、')}。人工维护内容不会被自动覆盖。` : '14 条规则均提供确定性检查；定义发布与页面演练不代表运行激活，实际调度需接入发布快照和流程。'"
+      style="margin-bottom: 12px" />
     <div class="filter-bar">
       <el-select
         v-model="filterConcept"
@@ -51,7 +55,8 @@
       </el-table-column>
       <el-table-column label="驱动方式" width="100">
         <template #default="{ row }">
-          <el-tag v-if="row.engine === 'QC'" size="small" type="success">表达式驱动</el-tag>
+          <el-tag v-if="row.engine === 'COMPUTE'" size="small" type="primary">算力检查</el-tag>
+          <el-tag v-else-if="row.engine === 'QC'" size="small" type="success">表达式驱动</el-tag>
           <el-tag v-else-if="row.metricCode" size="small" type="info">监控指标</el-tag>
           <span v-else>-</span>
         </template>
@@ -130,6 +135,9 @@
         <div class="rd-section-title">规则描述</div>
         <p class="rd-desc">{{ detailRule.expression || '暂无业务语言描述' }}</p>
 
+        <ComputeRuleDetails v-if="detailRule.engine === 'COMPUTE'" :rule="detailRule" />
+
+        <template v-if="detailRule.engine !== 'COMPUTE'">
         <div class="rd-section-head">
           <div class="rd-section-title rd-section-title-flat">规则定义</div>
           <el-segmented
@@ -169,6 +177,7 @@
           </div>
         </template>
         <pre v-else class="dsl-block" v-html="highlightedExpr"></pre>
+        </template>
 
         <div class="rd-section-title">关联本体</div>
         <div class="rd-badges">
@@ -180,7 +189,10 @@
 
         <div class="rd-section-title">命中与执行</div>
         <div class="rd-exec">
-          <template v-if="detailRule.engine === 'QC'">
+          <template v-if="detailRule.engine === 'COMPUTE'">
+            <span>定义状态不代表运行激活；当前提供确定性检查演练，实际决策与动作由后续发布及流程模块接入。</span>
+          </template>
+          <template v-else-if="detailRule.engine === 'QC'">
             <span>由 QC 质控引擎驱动，规则修改即生效、无需发版；命中明细沉淀在「数据治理」问题清单。</span>
             <el-button link type="primary" size="small" @click="goGov">前往数据治理 →</el-button>
           </template>
@@ -200,7 +212,7 @@
           <div class="rd-info-row"><span class="rd-info-label">当前版本</span><span>v{{ detailRule.version }}</span></div>
           <div class="rd-info-row">
             <span class="rd-info-label">驱动方式</span>
-            <span>{{ detailRule.engine === 'QC' ? 'QC 质控引擎（表达式）' : detailRule.metricCode ? '监控指标' : '无' }}</span>
+            <span>{{ detailRule.engine === 'COMPUTE' ? '算力固定处理函数' : detailRule.engine === 'QC' ? 'QC 质控引擎（表达式）' : detailRule.metricCode ? '监控指标' : '无' }}</span>
           </div>
         </div>
       </template>
@@ -230,6 +242,7 @@
             <el-option label="约束" value="约束" />
             <el-option label="推导" value="推导" />
             <el-option label="校验" value="校验" />
+            <el-option label="动作" value="动作" />
           </el-select>
         </el-form-item>
         <el-form-item label="严重度">
@@ -253,7 +266,13 @@
           <el-select v-model="form.engine" style="width: 100%">
             <el-option label="无" value="" />
             <el-option label="QC 质控引擎" value="QC" />
+            <el-option label="算力固定处理函数" value="COMPUTE" />
           </el-select>
+        </el-form-item>
+
+        <el-form-item v-if="form.engine === 'COMPUTE'" label="算力配置">
+          <el-input v-model="form.exprJson" type="textarea" :rows="12" />
+          <div class="expr-tip">保留已注册的 handler、evaluatorVersion 与输入契约。保存后版本递增并回到草稿，需重新评审；此处不激活运行规则。</div>
         </el-form-item>
 
         <!-- 表达式配置：engine = QC 时启用，双模态（可视化 / JSON 代码）同源等价 -->
@@ -457,6 +476,8 @@ import { listMetrics } from '../../../api/glossary'
 import { statusText, statusTagType } from '../../../utils/dict'
 import { useConceptStore } from '../../../store/concept'
 import TagInput from './TagInput.vue'
+import ComputeRuleDetails from './ComputeRuleDetails.vue'
+import { listComputeRules } from '../../../api/compute'
 
 const router = useRouter()
 const conceptStore = useConceptStore()
@@ -467,6 +488,7 @@ const filterConcept = ref('')
 const filterType = ref('')
 const metrics = ref([])
 const actingCode = ref('')
+const computeCoverage = ref(null)
 
 const ruleTypeTag = (t) => ({ 约束: 'danger', 推导: 'primary', 校验: 'warning' }[t] || 'info')
 const severityTag = (s) => ({ 高: 'danger', 中: 'warning', 低: 'info' }[s] || 'info')
@@ -475,6 +497,11 @@ const loadRules = async () => {
   loading.value = true
   try {
     rules.value = await listRules(filterConcept.value || undefined)
+    if (rules.value.some(rule => rule.conceptCode?.startsWith('COMPUTE_'))) {
+      const catalog = await listComputeRules()
+      computeCoverage.value = { available: catalog.filter(item => item.checkAvailable).length,
+        missing: catalog.filter(item => !item.checkAvailable).map(item => item.ruleCode) }
+    } else { computeCoverage.value = null }
   } finally {
     loading.value = false
   }
@@ -947,7 +974,7 @@ const submit = async (after) => {
     ElMessage.warning('请填写规则编码、名称和关联概念')
     return
   }
-  if (form.engine === 'QC') {
+  if (['QC', 'COMPUTE'].includes(form.engine)) {
     if (!form.exprJson) {
       ElMessage.warning('请配置规则表达式')
       return
@@ -969,7 +996,7 @@ const submit = async (after) => {
       severity: form.severity,
       metricCode: form.metricCode || null,
       engine: form.engine || null,
-      exprJson: form.engine === 'QC' ? form.exprJson || null : null,
+      exprJson: ['QC', 'COMPUTE'].includes(form.engine) ? form.exprJson || null : null,
       expression: form.expression,
       owner: form.owner
     }
