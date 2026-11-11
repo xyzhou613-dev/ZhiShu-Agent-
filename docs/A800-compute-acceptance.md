@@ -1,6 +1,6 @@
 # A800 算力版任务清单与人工验收
 
-基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定，业务库仍为 V2。
+基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库通过 V5 增加规则运行主记录和明细。
 
 ## 任务清单
 
@@ -10,11 +10,14 @@
 - [x] 定向测试及后端构建。提供 MySQL 冒烟测试和人工验收步骤。
 - [x] M-01：18 类对象、138 项关键属性和 30 条标准关系，附来源、状态、基数和未落库说明。
 - [x] M-02：14 条草稿规则、固定处理函数、版本检查、流程对应关系与只读演练，详见 `docs/A800-compute-m02.md`。
+- [x] N-02：固定生效快照执行六阶段规则，保存独立运行记录和逐条结果，提供执行、分页和详情接口。
 - [ ] 人工在浏览器逐项核对建模页面；自动数据库与 HTTP 验证见文末命令。
 
 ## 启动
 
 申请提交、查询、取消和失败作业重试的调用示例见 [N-01 算力申请接口](A800-compute-request-api.md)。
+
+读取生效快照、执行阶段规则和查询运行记录的示例见 [N-02 生效规则运行接口](A800-compute-rule-evaluation-api.md)。
 
 首次检出后，将 `bemodel-server/src/main/resources/application-compute.yml.example` 复制为同目录下的 `application-compute.yml`。实际配置由 Git 忽略。
 
@@ -39,7 +42,7 @@ $env:APP_SECRET_KEY = '<数据源凭证加密密钥>'
 
 ## 人工验收
 
-1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V6，业务库迁移到 V2，应有 28 张业务表。
+1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V5，应有 34 张业务表。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`。
 2. 本体管理应出现「算力管理」域，含 18 类概念。参照 `docs/A800-compute-ontology-checklist.md` 核对 138 项属性和 30 条标准关系；含用户自建关系的库允许多于 30 条。打开数据源与映射页面，确认 `A800_COMPUTE` 可见，`COMPUTE_GPU_DEVICE.UUID` 对应 `gpu_device.gpu_uuid`。
 3. 调用已登录的查询。固定样例观测时间为 `2026-11-06T10:00:00Z`，有效 30 秒。接口以当前账本为准，`evidenceAsOf` 只控制读取和校验哪一时点的观测。
 
@@ -72,7 +75,7 @@ $env:COMPUTE_MYSQL_SMOKE = 'true'
 mvn '-Dtest=ComputeOntologyMigrationTest,ComputeMysqlSmokeTest,ComputeProfileTest,ComputeDatabaseTest,ComputeGroupQueryTest' test
 ```
 
-第一轮的 `rule_version`、`decision` 和执行相关表提供后续落库结构。调度审批、规则快照发布、容器执行和真实采集属于下一轮。
+第一轮的 `rule_version`、`decision` 和执行相关表提供后续落库结构。M-04 已支持规则快照发布和激活，N-02 已支持调用方事实的独立运行记录；调度审批、正式申请决策、容器执行和真实采集由后续条目接入。
 
 `ComputeOntologyMigrationTest` 覆盖空库到 V5、V3 到 V5、再次执行无新增迁移、原始概念/属性 ID 和字段映射/快照保留、30 条标准关系及自建关系同名冲突。`ComputeMysqlSmokeTest` 覆盖登录、18 类概念详情、新属性与关系、数据源目录和八卡查询。
 
@@ -89,3 +92,11 @@ mvn '-Dtest=ComputeOntologyMigrationTest,ComputeMysqlSmokeTest,ComputeProfileTes
 本机使用 JDK 24，包含 Record mock 的 HTTP 测试使用测试 JVM 参数 `-DargLine=-Dnet.bytebuddy.experimental=true` 兼容现有 Byte Buddy；项目目标仍为 Java 21，没有为此升级依赖。其他开发机可使用项目要求的 JDK 21。
 
 本机应用连接共享库，规则表备份后成功迁移至 V6；原 M-01 的 18/138/30 项保留。14 条规则均为草稿，实际 HTTP 样例演练通过；运行规则快照和执行动作仍为零，未执行真实调度。浏览器自动化宿主不可用，尚未完成页面视觉/点击验收。
+
+## N-02 验证记录（2026-11-11）
+
+10 个定向测试类共 45 项用例最终通过，无跳过：`ComputeRuleRunnerTest`、`ComputeRuleEvaluatorTest`、`ComputeRuleServiceTest`、`ComputeRuleEvaluationDatabaseTest`、`ComputeReleaseBridgeTest`、`ComputeOntologyMigrationTest`、`ComputeMysqlSmokeTest`、`ComputeProfileTest`、`ComputeDatabaseTest`、`ComputeGroupQueryTest`。远程连接曾中断，受影响的数据库用例已重跑；其中一次再次迁移检查读取超时，单独重跑后通过，不能将先前失败批次视为整批成功。
+
+MySQL 8.4 随机隔离库验证了业务库 V5、再次迁移无变化、六阶段 14 条规则、快照参数与版本固定、新发布后旧记录保留、跨集合外键保护，以及明细写入失败时主记录和此前明细一起回滚。HTTP 验证了执行、分页、详情、输入限制和角色权限，并回归申请提交、取消、并发提交和失败作业重试。JSON 示例、PowerShell 语法、阶段清单及文档链接已检查。
+
+本次未迁移现有应用库，未在共享库发布或激活演示规则。事实来源为调用方，运行记录的 `authorizesExecution=false`；正式申请决策和服务端证据采集待后续接入。
