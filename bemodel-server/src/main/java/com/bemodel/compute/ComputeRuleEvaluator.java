@@ -20,10 +20,15 @@ public final class ComputeRuleEvaluator {
                          String reasonCode, Map<String, Object> output, boolean dryRun, boolean authorizesExecution) {}
 
     public Result evaluate(Rule rule, JsonNode definition, JsonNode facts) {
+        return evaluateSnapshot(rule.getRuleCode(), rule.getVersion(), definition, facts);
+    }
+
+    /** ruleVersion identifies the immutable execution snapshot supplied by the runner. */
+    public Result evaluateSnapshot(String ruleCode, int ruleVersion, JsonNode definition, JsonNode facts) {
         Check check;
         try {
             require(facts != null && facts.isObject(), "facts 必须是 JSON 对象");
-            check = switch (rule.getRuleCode()) {
+            check = switch (ruleCode) {
                 case "R-01" -> specification(facts);
                 case "R-02" -> capacity(facts, false);
                 case "R-03" -> resources(facts);
@@ -41,10 +46,10 @@ public final class ComputeRuleEvaluator {
                 default -> throw new IllegalArgumentException("不支持的规则编号");
             };
         } catch (IllegalArgumentException | ArithmeticException e) {
-            boolean invalidSpec = "R-01".equals(rule.getRuleCode());
+            boolean invalidSpec = "R-01".equals(ruleCode);
             check = new Check(invalidSpec ? Status.FAIL : Status.ERROR, invalidSpec ? "DENY_SPEC" : "INVALID_FACTS", Map.of("message", e.getMessage()));
         }
-        return new Result(rule.getRuleCode(), rule.getVersion(), VERSION, check.result(), check.reasonCode(),
+        return new Result(ruleCode, ruleVersion, VERSION, check.result(), check.reasonCode(),
                 check.output(), true, false);
     }
 

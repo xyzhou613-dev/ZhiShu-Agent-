@@ -147,7 +147,7 @@ public class ComputeReleaseBridge {
         var j=store.jdbc();
         var sets=j.queryForList("SELECT * FROM rule_set WHERE id=?",setId);
         if(sets.size()!=1) throw new BizException("运行规则集合不存在");
-        var versions=j.queryForList("SELECT v.* FROM rule_set_member m JOIN rule_version v ON v.id=m.rule_version_id WHERE m.rule_set_id=? ORDER BY m.rule_code",setId);
+        var versions=j.queryForList("SELECT v.*,m.rule_code AS member_rule_code FROM rule_set_member m JOIN rule_version v ON v.id=m.rule_version_id WHERE m.rule_set_id=? ORDER BY m.rule_code",setId);
         if(versions.size()!=14) throw new BizException("运行规则集合不完整");
         return Map.of("set",sets.getFirst(),"rules",versions);
     }
