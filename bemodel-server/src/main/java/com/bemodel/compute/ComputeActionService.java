@@ -181,7 +181,8 @@ public class ComputeActionService {
     }
     private Action locked(long id) { return store.jdbc().query("SELECT * FROM execution_action WHERE id=? FOR UPDATE",r->{if(!r.next())throw new BizException("执行动作不存在");return action(r);},id); }
     private Action same(Action a,Intent i,long decision) {
-        if(!a.operationKey().equals(i.operationKey()) || a.workflowId()!=i.workflowId() || a.decisionId()!=decision || !a.actionType().equals(i.actionType()) || !a.targetKind().equals(i.targetKind()) || a.targetId()!=i.targetId() || !Objects.equals(a.input(),i.input()))
+        // Normalize in-memory numeric node types exactly as they are read back from persisted JSON.
+        if(!a.operationKey().equals(i.operationKey()) || a.workflowId()!=i.workflowId() || a.decisionId()!=decision || !a.actionType().equals(i.actionType()) || !a.targetKind().equals(i.targetKind()) || a.targetId()!=i.targetId() || !Objects.equals(a.input(),read(i.input().toString())))
             throw new BizException("同一操作编号对应的动作内容不同");return a;
     }
     private void validate(Intent i) {

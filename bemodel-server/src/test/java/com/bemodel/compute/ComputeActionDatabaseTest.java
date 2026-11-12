@@ -43,7 +43,7 @@ class ComputeActionDatabaseTest {
     }
     @AfterAll void cleanup() throws Exception {if(pool!=null)pool.close();if(db!=null)db.close();}
     ComputeActionService service(ComputeActionExecutor... adapters){return new ComputeActionService(store,json,List.of(adapters),30);}
-    ComputeActionService.Intent intent(String key){return new ComputeActionService.Intent(workflow,"STOP_JOB","JOB",1,key,json.createObjectNode().put("reason","TEST"));}
+    ComputeActionService.Intent intent(String key){return new ComputeActionService.Intent(workflow,"STOP_JOB","JOB",1,key,json.createObjectNode().put("reason","TEST").put("jobId",1L));}
     String key(){return "test:"+UUID.randomUUID();}
     ComputeActionService.Action prepared(ComputeActionService s){return s.prepare(intent(key()));}
 
