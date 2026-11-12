@@ -39,3 +39,5 @@
 - 8 项 HTTP 冒烟回归通过，包含 10 动作/26 约束目录、真实空回执查询和原有申请、取消、并发重试。旧重试测试样例已补齐合法的两卡分配明细。
 
 接口：`GET /api/compute/action-contracts`、`GET /api/compute/constraints`、`GET /api/compute/actions/results?operationKey=...`。回执查询仅 ADMIN/EDITOR；定义和约束沿用已登录只读权限。此变更不会向节点发送命令或通知。
+
+N-12 已补充动作登记、固定编号调用、未知结果核对、安全重试及事件审计，见 [执行动作管理接口](A800-compute-execution-action-api.md)。仍未接入 N-11 流程推进和节点执行器；这里的动作草稿契约不会因此自动发布或获得执行许可。
