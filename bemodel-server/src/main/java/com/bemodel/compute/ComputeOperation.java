@@ -30,6 +30,8 @@ enum ComputeOperation {
     ACTION_RECONCILE("核对未知动作结果", Kind.WRITE, "ADMIN", "EDITOR"),
     ACTION_RETRY("人工重试动作", Kind.WRITE, "ADMIN"),
     ACTION_CONTRACT_QUERY("查询动作与硬约束目录", Kind.READ, "ADMIN", "EDITOR", "REVIEWER", "VIEWER"),
+    SIMULATOR_QUERY("查询模拟节点及回执", Kind.READ, "ADMIN", "EDITOR"),
+    SIMULATOR_CONTROL("配置模拟场景及采集模拟观测", Kind.WRITE, "ADMIN"),
 
     QUEUE_ENQUEUE("申请入队", Kind.WRITE, "ADMIN", "EDITOR"),
     QUEUE_QUERY("查询队列", Kind.READ, "ADMIN", "EDITOR"),

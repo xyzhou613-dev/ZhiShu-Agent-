@@ -19,12 +19,15 @@ compute:
     maximum-pool-size: 4
     minimum-idle: 1
   runtime:
-    # 显式模拟/真实开关。REAL 在 N-13/N-16 真实节点采集与执行适配器接入前会拒绝启动。
+    # REAL 在 N-16 真实采集与执行适配器接入前会拒绝启动。
     mode: ${COMPUTE_RUNTIME_MODE:SIMULATION}
-    # 演示数据标识；模拟模式只使用迁移中插入一次的 A800_DEMO_FIXTURE 数据。
+    # 固定教学样例只插入一次；模拟器使用独立的 A800_SIMULATOR_V1 观测来源。
     demo-dataset: ${COMPUTE_DEMO_DATASET:A800_DEMO_FIXTURE}
     # 算力模式默认不提供医疗专用控制器、定时任务和 MCP 工具；跨域联调时才显式打开。
     medical-apis-enabled: ${COMPUTE_MEDICAL_APIS_ENABLED:false}
+  simulator:
+    # 默认关闭；开启后仍须通过管理员接口显式初始化节点，不会在启动时刷新观测或执行动作。
+    enabled: ${COMPUTE_SIMULATOR_ENABLED:false}
   queue:
     # 队列自动重评默认关闭；资源变化事件仍可在同进程内触发一次重评。
     recheck-enabled: ${COMPUTE_QUEUE_RECHECK_ENABLED:false}

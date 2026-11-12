@@ -13,7 +13,7 @@ import java.util.Locale;
  * 算力运行环境开关（M-17）。
  *
  * <p>运行模式只允许显式配置，页面、Agent 或调用方都不能在请求里临时切换。真实节点采集与执行适配器
- * （N-13、N-16）尚未接入，因此 {@code REAL} 会在启动时被拒绝，避免误把模拟结果当成真实运行。</p>
+ * （N-16）尚未接入，因此 {@code REAL} 会在启动时被拒绝，避免误把模拟结果当成真实运行。</p>
  *
  * <p>医疗专用接口在算力模式下默认关闭；只有明确做跨域联调时才通过
  * {@code compute.runtime.medical-apis-enabled=true} 打开。</p>
@@ -54,7 +54,7 @@ final class ComputeRuntimeSettings {
         this.medicalApisEnabled = medicalApisEnabled;
         this.queueRecheckEnabled = queueRecheckEnabled;
         if (this.mode == Mode.REAL) {
-            throw new IllegalStateException("compute.runtime.mode=REAL 已明确禁用：N-13 模拟节点与 N-16 真实采集尚未接入，"
+            throw new IllegalStateException("compute.runtime.mode=REAL 已明确禁用：N-16 真实采集与执行尚未接入，"
                     + "真实模式不能启动；演示环境请保持 SIMULATION");
         }
         LOG.info("算力运行环境: mode={} nodeKey={} demoDataset={} medicalApis={} queueRecheck={}",

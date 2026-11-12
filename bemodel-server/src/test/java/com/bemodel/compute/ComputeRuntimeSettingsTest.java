@@ -26,7 +26,7 @@ class ComputeRuntimeSettingsTest {
         assertTrue(settings("simulation", false, false).simulation());
         var error = assertThrows(IllegalStateException.class, () -> settings("real", false, false));
         assertTrue(error.getMessage().contains("REAL"));
-        assertTrue(error.getMessage().contains("N-13"));
+        assertTrue(error.getMessage().contains("N-16"));
     }
 
     @Test

@@ -36,7 +36,7 @@ class ComputeActionDatabaseTest {
         long decision=ComputeReleaseBridge.insert(j,"INSERT INTO decision(request_id,kind,outcome,as_of,snapshot_id) SELECT 1,'SUBMISSION','APPROVED',as_of,id FROM evidence_snapshot WHERE id=?",snapshot);
         workflow=ComputeReleaseBridge.insert(j,"INSERT INTO workflow_run(request_id,decision_id,group_id,job_id,restore_revision_id) VALUES(1,?,2,1,2)",decision);
         j.update("INSERT INTO execution_action(workflow_run_id,decision_id,action_type,target_kind,target_id,idempotency_key,status,receipt) VALUES(?,?,'STOP_JOB','JOB',1,'legacy','UNKNOWN',JSON_OBJECT('legacy',true))",workflow,decision);
-        var migration=Flyway.configure().dataSource(pool).locations("classpath:db/a800-compute").load();
+        var migration=Flyway.configure().dataSource(pool).locations("classpath:db/a800-compute").target("12").load();
         assertEquals(1,migration.migrate().migrationsExecuted);
         assertEquals(0,migration.migrate().migrationsExecuted);
         assertTrue(j.queryForObject("SELECT receipt FROM execution_action WHERE idempotency_key='legacy'",String.class).contains("legacy"));
