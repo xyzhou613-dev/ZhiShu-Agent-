@@ -719,6 +719,25 @@ class ComputeMysqlSmokeTest {
         assertEquals("SUCCEEDED", actions.get(0).path("status").asText());
     }
 
+    @Test
+    void exposesManagedActionQueriesAndProtectsReconciliationAndRetry() {
+        var admin=adminHeaders();
+        JsonNode page=ok(get("/api/compute/execution-actions?operationKey=never-executed&pageNum=0&pageSize=999",admin));
+        assertTrue(page.path("list").isEmpty());assertEquals(1,page.path("pageNum").asInt());assertEquals(200,page.path("pageSize").asInt());
+        assertEquals(500,get("/api/compute/execution-actions?status=INVALID",admin).path("code").asInt());
+        assertEquals(500,get("/api/compute/execution-actions/999999999",admin).path("code").asInt());
+        assertEquals(500,post("/api/compute/execution-actions/999999999/reconcile",Map.of(),admin).path("code").asInt());
+        assertEquals(500,post("/api/compute/execution-actions/999999999/retry",Map.of(),admin).path("code").asInt());
+        assertEquals(0,get("/api/compute/execution-actions?operationKey=never-executed",headersForRole("EDITOR")).path("code").asInt());
+        assertEquals(403,http.exchange("/api/compute/execution-actions/999999999/retry",HttpMethod.POST,new HttpEntity<>(Map.of(),headersForRole("EDITOR")),JsonNode.class).getStatusCode().value());
+        for(String role:List.of("VIEWER","REVIEWER")) {
+            var headers=headersForRole(role);
+            assertEquals(403,http.exchange("/api/compute/execution-actions",HttpMethod.GET,new HttpEntity<>(headers),JsonNode.class).getStatusCode().value());
+            assertEquals(403,http.exchange("/api/compute/execution-actions/999999999/reconcile",HttpMethod.POST,new HttpEntity<>(Map.of(),headers),JsonNode.class).getStatusCode().value());
+        }
+        assertEquals(401,http.getForEntity("/api/compute/execution-actions",JsonNode.class).getStatusCode().value());
+    }
+
     private FailedJob failedJob(HttpHeaders headers) {
         long requestId = ok(post("/api/compute/requests", requestBody(UUID.randomUUID().toString()), headers))
                 .path("id").asLong();
