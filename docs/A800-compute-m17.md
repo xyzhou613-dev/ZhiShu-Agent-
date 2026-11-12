@@ -6,7 +6,7 @@ M-17 把算力运行环境和医疗演示彻底分开，并把“模拟还是真
 
 | 内容 | 落地 |
 |---|---|
-| 运行模式 | `compute.runtime.mode` 只接受 `SIMULATION` / `REAL`；`REAL` 在 N-13 模拟节点与 N-16 真实采集接入前直接拒绝启动 |
+| 运行模式 | `compute.runtime.mode` 只接受 `SIMULATION` / `REAL`；`REAL` 在 N-16 真实采集与执行接入前直接拒绝启动 |
 | 模拟数据 | `compute.runtime.demo-dataset` 固定标识演示观测来源，默认 `A800_DEMO_FIXTURE`；样例只在 Flyway 首次迁移时插入 |
 | 医疗初始化 | `DataSeeder` 仅 `!compute` 加载，算力模式不会写入医疗样例 |
 | 医疗定时任务 | `InspectScheduler`（指标/对账巡检）与 `ProposalScheduler`（提案生成）改为 `@Profile("!compute")`，算力模式不存在这些 Bean |
@@ -84,3 +84,5 @@ spring:
 - 本轮没有接入真实节点采集、真实容器执行和真实通知；`REAL` 模式被明确拒绝，避免把模拟结果当成实机结果。
 - 医疗接口隔离解决的是“算力模式不提供医疗能力”；前端医疗菜单隐藏仍属于 M-15。
 - 队列自动重评默认关闭，避免演示环境后台任务在无人值守时改动队列；资源变化事件仍可在同进程内触发一次重评。
+
+N-13 已提供可显式开启的持久化模拟器，独立来源为 A800_SIMULATOR_V1；默认关闭，开启及初始化方法见 [模拟器接口](A800-compute-simulator-api.md)。固定教学样例仍只插入一次，启动不会刷新其时间。

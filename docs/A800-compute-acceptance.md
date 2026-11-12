@@ -1,6 +1,6 @@
 # A800 算力版任务清单与人工验收
 
-基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库迁移到 V12：V5 增加规则运行记录，V6/V7 增加证据快照保护和运行证据关联，V8 保存目标组选择，V9 保存容量投影，V10 扩展队列，V11 保存事务预留回执并补充正式决策审计，V12 扩展动作幂等、结果核对及事件审计。
+基线为 BeModel `ebbc758`，本地开发分支为 `feat/a800-compute`。第一轮按数据库设计 v0.2 交付迁移、样例、现有建模页面和卡组只读查询。M-01 通过元数据库 V4/V5 补齐对象、属性和关系，M-02 通过 V6 补齐规则及确定性检查绑定。当前平台元数据库迁移到 V9，业务库迁移到 V13：V5 增加规则运行记录，V6/V7 增加证据快照保护和运行证据关联，V8 保存目标组选择，V9 保存容量投影，V10 扩展队列，V11 保存事务预留回执并补充正式决策审计，V12 扩展动作幂等、结果核对及事件审计，V13 增加持久化模拟节点、场景和原操作账本。
 
 ## 任务清单
 
@@ -17,6 +17,7 @@
 - [x] N-06：节点队列、稳定排序、串行重评、排队取消及可配置的轮询和资源变化触发，见 [队列接口](A800-compute-queue-api.md)。
 - [x] N-07：固定规则与新证据，事务核对队首及容量，保存正式准入、提交决策和 PENDING 预留；保留实际部署持有，见 [事务预留接口](A800-compute-reservation-api.md)。
 - [x] N-12：动作独立登记、固定编号调用、未知结果核对、安全重试、领取防重与事件审计；节点执行器及流程推进留给 N-13 / N-11，见 [动作管理接口](A800-compute-execution-action-api.md)。
+- [x] N-13：显式开启的模拟节点与通知适配器、模拟观测、延迟/失败/超时、重启及重复回执去重，见 [模拟器接口](A800-compute-simulator-api.md)。
 - [ ] 人工在浏览器逐项核对建模页面；自动数据库与 HTTP 验证见文末命令。
 
 ## 启动
@@ -32,6 +33,8 @@
 方案与恢复投影、计算分项和历史查询见 [N-05 容量投影接口](A800-compute-capacity-projection-api.md)。
 
 动作分页、回执详情、未知结果核对和管理员重试见 [N-12 执行动作接口](A800-compute-execution-action-api.md)。
+
+模拟器的开启、初始化、场景和观测见 [N-13 模拟器接口](A800-compute-simulator-api.md)。
 
 首次检出后，将 `bemodel-server/src/main/resources/application-compute.yml.example` 复制为同目录下的 `application-compute.yml`。实际配置由 Git 忽略。
 
@@ -56,7 +59,7 @@ $env:APP_SECRET_KEY = '<数据源凭证加密密钥>'
 
 ## 人工验收
 
-1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V12，应有 41 张业务表（不含 Flyway 历史表）。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`；N-03 复用证据表并新增 `rule_evaluation_check_evidence`；N-04 新增目标选择表；N-05 新增 `capacity_projection_run`、`capacity_projection_check` 和 `capacity_projection_evidence`；N-06 扩展原队列；N-07 新增 `compute_reservation_receipt`；N-12 扩展原动作表并复用资源事件表。
+1. 检查 MySQL 中 `bemodel_compute_platform` 和 `a800_compute` 的 Flyway 历史。空测试实例应只创建这两个应用库。算力元数据库迁移到 V9，业务库迁移到 V13，应有 44 张业务表（不含 Flyway 历史表）。N-02 的两张表为 `rule_evaluation_run` 和 `rule_evaluation_check`；N-03 复用证据表并新增 `rule_evaluation_check_evidence`；N-04 新增目标选择表；N-05 新增 `capacity_projection_run`、`capacity_projection_check` 和 `capacity_projection_evidence`；N-06 扩展原队列；N-07 新增 `compute_reservation_receipt`；N-12 扩展原动作表并复用资源事件表；N-13 新增三张模拟器内部表。
 2. 本体管理应出现「算力管理」域，含 18 类概念。参照 `docs/A800-compute-ontology-checklist.md` 核对 138 项属性和 30 条标准关系；含用户自建关系的库允许多于 30 条。打开数据源与映射页面，确认 `A800_COMPUTE` 可见，`COMPUTE_GPU_DEVICE.UUID` 对应 `gpu_device.gpu_uuid`。
 3. 调用已登录的查询。固定样例观测时间为 `2026-11-06T10:00:00Z`，有效 30 秒。接口以当前账本为准，`evidenceAsOf` 只控制读取和校验哪一时点的观测。
 
@@ -195,3 +198,15 @@ MySQL 8.4 随机隔离库验证了业务库 V5、再次迁移无变化、六阶�
 - HTTP 验证新分页接口、无效状态、缺失动作、匿名 401、VIEWER/REVIEWER 403、EDITOR 不可人工重试，并回归原申请、规则、证据、队列、预留、权限及环境隔离。新文档的 JSON、PowerShell 语法和本地链接检查通过。
 - 初次数据库测试的准备数据未对齐决策与快照时间外键，修正测试数据后通过；一次 HTTP 批次受到并行重新编译导致的类加载错误影响，未计为通过。编译完成后独立重跑完整 HTTP 20 项通过。
 - 应用没有注册生产执行器，未配置执行器时明确拒绝发送；测试执行器仅存在于测试源码中。未知状态不伪造为失败或成功，不改变持有、预留、卡组或作业账本。
+
+## N-13 验证记录（2026-11-12）
+
+交付默认关闭、仅限 SIMULATION 模式的模拟节点与通知适配器，接入 N-12 固定操作编号。说明、开关、场景和 PowerShell 示例见 [N-13 模拟器接口](A800-compute-simulator-api.md)。
+
+- 12 个测试类共 69 项通过，失败、错误及跳过均为 0：模拟器数据库 10 项、开关 3 项、开启模拟器的 HTTP 链路 1 项、N-12 数据库 7 项、动作 MVC 4 项、权限目录 5 项、权限拦截器 5 项、运行设置 6 项、硬约束 3 项、Agent 过滤 4 项、原有完整 HTTP 冒烟 20 项、空库初始化 1 项。
+- MySQL 8.4 随机临时库验证 V12→V13、空库到 V13、重复迁移无变化和 44 张业务表。旧 N-12 迁移验证显式固定到 V12，保留原升级断言。
+- 验证并发、重启和重复回执去重；同一次失败回执重复投递不会变成新重试；延迟与回执丢失后按原编号核对；模拟端状态、回执和事件写入失败整体回滚。
+- 停服要求已摘流且在途为零；启动要求 OCCUPIED 分配、实际持有区间及卡组指针一致；恢复固定流程修订。容量不足阻止新增启动及恢复，仍允许通知和停服。健康失败不接回流量。
+- 采集失败写 ERROR 且不补零；整批观测失败回滚且不发布资源变化事件。模拟来源在登记并发布前返回 SOURCE_MISMATCH，发布后可被服务端证据快照采信。
+- HTTP 验证管理员控制、EDITOR 只读、VIEWER/REVIEWER 拒绝、匿名 401，以及 TIMEOUT 停服回执经 N-12 核对成功、模拟 GPU 释放但业务持有/预留不变。开关单测初次因测试上下文遗漏运行配置注册而失败，修正测试装配后 3 项通过；失败批次未计为通过。
+- 文档 JSON、PowerShell 语法及本地链接检查通过。测试库完成后清理；没有迁移现有应用库、刷新共享样例或开启共享环境模拟器。N-11 自动流程推进、真实容器及真实通知仍未接入。
