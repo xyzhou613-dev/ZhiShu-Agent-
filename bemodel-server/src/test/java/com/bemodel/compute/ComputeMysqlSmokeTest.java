@@ -72,6 +72,7 @@ class ComputeMysqlSmokeTest {
         properties.add("bemodel.reconcile.cron", () -> "-");
         properties.add("bemodel.proposal.cron", () -> "-");
         properties.add("compute.queue.recheck-enabled", () -> "false");
+        properties.add("compute.simulator.enabled", () -> "false");
     }
 
     @BeforeEach
