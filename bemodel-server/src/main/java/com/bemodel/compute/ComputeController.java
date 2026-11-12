@@ -24,6 +24,7 @@ final class ComputeController {
     }
 
     @GetMapping("/groups")
+    @ComputeAccess(ComputeOperation.RESOURCE_QUERY)
     Result<GroupOverview> groups(@RequestParam(defaultValue = "a800-demo") String nodeKey,
                                  @RequestParam(required = false) Instant evidenceAsOf) {
         Instant at = evidenceAsOf == null ? Instant.now() : evidenceAsOf;

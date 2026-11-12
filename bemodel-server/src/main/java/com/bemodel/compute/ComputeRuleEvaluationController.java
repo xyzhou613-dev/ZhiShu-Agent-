@@ -23,17 +23,20 @@ final class ComputeRuleEvaluationController {
     }
 
     @PostMapping
+    @ComputeAccess(ComputeOperation.RULE_EVALUATE)
     Result<ComputeRuleEvaluationService.Detail> execute(@RequestBody JsonNode body) {
         return Result.ok(evaluations.execute(body));
     }
 
     @GetMapping
+    @ComputeAccess(ComputeOperation.RULE_EVALUATION_QUERY)
     Result<PageResult<ComputeRuleEvaluationService.Run>> list(@RequestParam(required = false) Integer pageNum,
                                                            @RequestParam(required = false) Integer pageSize) {
         return Result.ok(evaluations.list(PageResult.pageNum(pageNum), PageResult.pageSize(pageSize, 20)));
     }
 
     @GetMapping("/{id}")
+    @ComputeAccess(ComputeOperation.RULE_EVALUATION_QUERY)
     Result<ComputeRuleEvaluationService.Detail> detail(@PathVariable long id) {
         return Result.ok(evaluations.detail(id));
     }

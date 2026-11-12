@@ -23,27 +23,32 @@ final class ComputeRequestController {
     }
 
     @PostMapping
+    @ComputeAccess(ComputeOperation.REQUEST_SUBMIT)
     Result<ComputeRequestService.Request> submit(@RequestBody JsonNode body) {
         return Result.ok(requests.submit(body));
     }
 
     @GetMapping
+    @ComputeAccess(ComputeOperation.REQUEST_QUERY)
     Result<PageResult<ComputeRequestService.Request>> list(@RequestParam(required = false) Integer pageNum,
                                                          @RequestParam(required = false) Integer pageSize) {
         return Result.ok(requests.list(PageResult.pageNum(pageNum), PageResult.pageSize(pageSize, 20)));
     }
 
     @GetMapping("/{id}")
+    @ComputeAccess(ComputeOperation.REQUEST_QUERY)
     Result<ComputeRequestService.Detail> detail(@PathVariable long id) {
         return Result.ok(requests.detail(id));
     }
 
     @PostMapping("/{id}/cancel")
+    @ComputeAccess(ComputeOperation.REQUEST_CANCEL)
     Result<ComputeRequestService.Request> cancel(@PathVariable long id) {
         return Result.ok(requests.cancel(id));
     }
 
     @PostMapping("/{id}/jobs/{jobId}/retry")
+    @ComputeAccess(ComputeOperation.JOB_RETRY)
     Result<ComputeRequestService.Job> retry(@PathVariable long id, @PathVariable long jobId) {
         return Result.ok(requests.retry(id, jobId));
     }

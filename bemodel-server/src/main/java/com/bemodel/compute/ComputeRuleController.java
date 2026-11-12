@@ -15,12 +15,14 @@ public class ComputeRuleController {
     public ComputeRuleController(ComputeRuleService rules) { this.rules = rules; }
 
     @GetMapping
+    @ComputeAccess(ComputeOperation.RULE_CATALOG_QUERY)
     public Result<List<ComputeRuleService.Binding>> catalog() { return Result.ok(rules.catalog()); }
 
     public record PreviewRequest(Integer ruleVersion, JsonNode facts) {}
 
-    /** Editor/admin-only by existing SecurityConfig. Pure preview; supplied facts are NOT trusted scheduling evidence. */
+    /** Pure preview; supplied facts are NOT trusted scheduling evidence. */
     @PostMapping("/{code}/preview")
+    @ComputeAccess(ComputeOperation.RULE_PREVIEW)
     public Result<ComputeRuleEvaluator.Result> preview(@PathVariable String code, @RequestBody PreviewRequest request) {
         return Result.ok(rules.check(code, request.ruleVersion(), request.facts()));
     }

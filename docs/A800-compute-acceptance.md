@@ -164,3 +164,13 @@ MySQL 8.4 随机隔离库验证了业务库 V5、再次迁移无变化、六阶�
 - `ComputeMysqlSmokeTest` 17 项通过（新增运行环境与医疗隔离 1 项，回归 16 项）。首次使用远程 MySQL 8.4 时队列用例在恢复规则状态阶段遇到一次连接超时，16 项通过；改用本机 MySQL 8.0.40 随机隔离库完整重跑 17 项通过。网络超时批次未计为通过。
 - 医疗接口在算力模式返回 404；`/mcp` 返回 404；`/api/compute/**` 和本体、映射、治理接口不受影响。匿名访问运行环境接口返回 401。
 - 没有新增平台或业务迁移；没有刷新共享观测、发布共享规则或执行真实节点动作。
+
+## M-16 验证记录（2026-11-12）
+
+按《功能改造与新增清单 v0.2》完成基础权限和字段敏感标注：统一操作目录、`@ComputeAccess` 注解与拦截器、拒绝审计、字段目录、Agent 只读投影。详细说明见 [M-16](A800-compute-m16.md)。
+
+- `GET /api/compute/access-policy` 返回操作矩阵、`anonymousWritesAllowed=false`、`agentWritesAllowed=false`；`GET /api/compute/field-policies` 返回申请、作业、卡组、动作回执字段的公开/内部/敏感标注。
+- `ComputeAccessPolicyTest` 5 项、`ComputeAccessInterceptorTest` 5 项、`ComputeAgentViewTest` 4 项通过。VIEWER 提交申请返回 403 并写入 `bm_compute_operation_audit`；匿名写接口返回 401；EDITOR 可提交；REVIEWER 只保留发布同步和冲突裁定两个写例外。
+- `ComputeMysqlSmokeTest` 19 项通过：新增角色矩阵、拒绝审计、匿名 401、Agent 申请/卡组/动作投影；原有 17 项权限、申请、队列、预留、规则、发布和运行环境用例回归通过。Agent 申请结果不含 `launchSpec`、`employeeId`、`clientRequestKey`；动作结果不含 `receipt`、`idempotency_key`。
+- 全量算力测试 125 项在 MySQL 8.0.40 随机隔离库通过，失败、错误、跳过均为 0。
+- 没有新增迁移；没有改变原有业务数据。前端按钮/菜单按角色隐藏仍留给 M-15。

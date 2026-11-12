@@ -27,7 +27,9 @@ import java.util.Map;
  * 例外1：/api/cs/ask、/api/cs/clarify/**、/api/search 为问答语义查询（澄清回答与提问同级），
  * /api/cs/feedback 为评议提交，各角色皆可——这些端点会产生问答伴生状态（澄清任务推进、
  * 缺口提案回流），但只写伴生表，不写建模数据（上方写不变量针对建模数据）；
- * 例外2：概念发布/废弃与本体版本发布是评审动作，REVIEWER 也放行（服务层另有评审门禁：非评审员/管理员会被拒）。
+ * 例外2：概念发布/废弃与本体版本发布是评审动作，REVIEWER 也放行（服务层另有评审门禁：非评审员/管理员会被拒）；
+ * 例外3：/api/compute/** 只在这里要求已登录，具体操作角色由算力模块的 @ComputeAccess 统一校验
+ * （M-16：申请、流程查询、停止、重试等不能再依赖 URL 层的粗粒度规则）。
  * 401/403 统一返回 Result 风格 JSON。CORS 策略与 CorsConfig 现状一致。
  */
 @Configuration
@@ -54,9 +56,7 @@ public class SecurityConfig {
                         // 评审动作放 REVIEWER：概念发布/废弃 + 本体版本发布（服务层另有评审门禁兜底）
                         .requestMatchers(HttpMethod.POST, "/api/concept/transition/**", "/api/release/publish", "/api/rule/transition/**")
                             .hasAnyRole("ADMIN", "EDITOR", "REVIEWER")
-                        .requestMatchers(HttpMethod.POST, "/api/compute/releases/*/sync", "/api/compute/rule-conflicts/*/resolve")
-                            .hasAnyRole("ADMIN", "REVIEWER")
-                        // 知识库写操作（借鉴 5）：上传/编辑/删除限管理角色；发布/审批动作放 REVIEWER
+                        // 知识库写操作：上传/编辑/删除限管理角色；发布/审批动作放 REVIEWER
                         //（服务层 transition 另有评审门禁+防自审兜底，对齐概念域）
                         .requestMatchers(HttpMethod.POST, "/api/knowledge/documents/*/transition",
                                 "/api/knowledge/entries/*/transition")
@@ -70,22 +70,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/cs/feedback/list").hasAnyRole("ADMIN", "EDITOR")
                         // 澄清任务列表是维护者视图（含用户原话证据），不开放 REVIEWER/VIEWER
                         .requestMatchers(HttpMethod.GET, "/api/cs/clarify/list").hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/requests", "/api/compute/requests/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/rule-evaluations", "/api/compute/rule-evaluations/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/evidence-snapshots", "/api/compute/evidence-snapshots/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/target-selections", "/api/compute/target-selections/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/capacity-projections", "/api/compute/capacity-projections/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/queue", "/api/compute/queue/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/reservations", "/api/compute/reservations/**")
-                            .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers("/api/compute/actions/results")
-                            .hasAnyRole("ADMIN", "EDITOR")
+                        // 算力接口只在这里做认证；申请、流程查询、停止、重试等细粒度角色由
+                        // @ComputeAccess + ComputeAccessInterceptor 统一校验，避免两处规则漂移。
+                        .requestMatchers("/api/compute/**")
+                            .hasAnyRole("ADMIN", "EDITOR", "REVIEWER", "VIEWER")
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("ADMIN", "EDITOR", "REVIEWER", "VIEWER")
                         .requestMatchers("/api/**").hasAnyRole("ADMIN", "EDITOR")
                         .anyRequest().permitAll())

@@ -39,6 +39,7 @@ final class ComputeRuntimeController {
     }
 
     @GetMapping
+    @ComputeAccess(ComputeOperation.RUNTIME_QUERY)
     Result<RuntimeInfo> info() {
         String platformSchema = schema(platformUrl);
         String businessSchema = schema(store.endpoint().jdbcUrl());

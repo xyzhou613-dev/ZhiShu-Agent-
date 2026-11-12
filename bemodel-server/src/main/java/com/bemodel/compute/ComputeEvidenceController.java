@@ -14,14 +14,17 @@ final class ComputeEvidenceController {
     ComputeEvidenceController(ComputeEvidenceService evidence) { this.evidence = evidence; }
 
     @PostMapping
+    @ComputeAccess(ComputeOperation.EVIDENCE_CAPTURE)
     Result<ComputeEvidenceService.Detail> capture(@RequestBody JsonNode body) { return Result.ok(evidence.capture(body)); }
 
     @GetMapping
+    @ComputeAccess(ComputeOperation.EVIDENCE_QUERY)
     Result<PageResult<ComputeEvidenceService.Snapshot>> list(@RequestParam(required=false) Integer pageNum,
                                                             @RequestParam(required=false) Integer pageSize) {
         return Result.ok(evidence.list(PageResult.pageNum(pageNum), PageResult.pageSize(pageSize, 20)));
     }
 
     @GetMapping("/{id}")
+    @ComputeAccess(ComputeOperation.EVIDENCE_QUERY)
     Result<ComputeEvidenceService.Detail> detail(@PathVariable long id) { return Result.ok(evidence.detail(id)); }
 }

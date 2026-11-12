@@ -624,6 +624,95 @@ class ComputeMysqlSmokeTest {
         assertEquals(401, http.getForEntity("/api/compute/runtime", JsonNode.class).getStatusCode().value());
     }
 
+    @Test
+    void accessPolicyCatalogIsSharedAndDeniedWritesAreAudited() throws Exception {
+        var admin = adminHeaders();
+        JsonNode policy = ok(get("/api/compute/access-policy", admin));
+        assertEquals("ANNOTATION+INTERCEPTOR", policy.path("enforcement").asText());
+        assertFalse(policy.path("anonymousWritesAllowed").asBoolean(true));
+        assertFalse(policy.path("agentWritesAllowed").asBoolean(true));
+        var codes = new java.util.HashSet<String>();
+        policy.path("operations").forEach(operation -> codes.add(operation.path("code").asText()));
+        assertTrue(codes.containsAll(java.util.Set.of("REQUEST_SUBMIT", "WORKFLOW_QUERY", "JOB_STOP",
+                "JOB_RETRY", "ACTION_RETRY")), codes.toString());
+
+        assertEquals(0, get("/api/compute/access-policy", headersForRole("VIEWER")).path("code").asInt(-1));
+        assertEquals(403, http.exchange("/api/compute/requests", HttpMethod.POST,
+                new HttpEntity<>(requestBody(UUID.randomUUID().toString()), headersForRole("VIEWER")),
+                JsonNode.class).getStatusCode().value());
+        Integer denied = databases.platform().queryForObject("""
+                SELECT COUNT(*) FROM bm_compute_operation_audit
+                WHERE actor='test-VIEWER' AND operation='REQUEST_SUBMIT'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(detail,'$.decision'))='DENIED'
+                """, Integer.class);
+        assertNotNull(denied);
+        assertTrue(denied >= 1, "被拒绝的写操作应留下审计");
+        try (var client = java.net.http.HttpClient.newHttpClient()) {
+            var anonymous = java.net.http.HttpRequest.newBuilder(
+                            URI.create(http.getRootUri() + "/api/compute/requests"))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{}")).build();
+            assertEquals(401, client.send(anonymous,
+                    java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode());
+        }
+    }
+
+    @Test
+    void agentProjectionHidesLaunchSpecReceiptsAndRequesterIdentity() {
+        var admin = adminHeaders();
+        JsonNode request = ok(get("/api/compute/agent/requests/1", admin));
+        assertEquals(1, request.path("request").path("id").asLong(), request.toString());
+        assertTrue(request.path("request").path("launchSpec").isMissingNode());
+        assertTrue(request.path("request").path("employeeId").isMissingNode());
+        assertTrue(request.path("request").path("clientRequestKey").isMissingNode());
+        assertFalse(request.path("authorizesExecution").asBoolean(true));
+        assertTrue(request.path("jobs").size() >= 1);
+
+        JsonNode groups = ok(get("/api/compute/agent/groups?nodeKey=a800-demo", admin));
+        assertEquals(4, groups.path("groups").size());
+        for (JsonNode group : groups.path("groups")) {
+            assertTrue(group.path("holderRequest").path("employeeId").isMissingNode());
+            assertTrue(group.path("pendingRequest").path("employeeId").isMissingNode());
+        }
+
+        // 造一条带回执的动作，确认 Agent 投影只保留状态，不输出回执和固定操作编号。
+        var j = databases.business();
+        String key = "m16-agent-" + UUID.randomUUID();
+        j.update("""
+                INSERT INTO compute_request(employee_id,project_id,task_type_id,client_request_key,
+                    request_fingerprint,requested_gpu_count,requested_resource_spec,launch_spec)
+                VALUES(1,1,1,?,?,1,'{"memoryBytes":1024}','{"imageRef":"demo/agent"}')
+                """, key, "b".repeat(64));
+        long requestId = j.queryForObject("SELECT id FROM compute_request WHERE client_request_key=?",
+                Long.class, key);
+        j.update("INSERT INTO compute_job(request_id,task_type_id,effective_gpu_count,effective_resource_spec) "
+                + "VALUES(?,1,1,'{\"memoryBytes\":1024}')", requestId);
+        long jobId = j.queryForObject("SELECT id FROM compute_job WHERE request_id=?", Long.class, requestId);
+        j.update("INSERT INTO evidence_snapshot(as_of) VALUES(UTC_TIMESTAMP(6))");
+        j.update("""
+                INSERT INTO decision(request_id,kind,outcome,as_of,snapshot_id)
+                SELECT ?,'SUBMISSION','APPROVED',as_of,id FROM evidence_snapshot ORDER BY id DESC LIMIT 1
+                """, requestId);
+        j.update("""
+                INSERT INTO workflow_run(request_id,decision_id,group_id,job_id)
+                SELECT ?,id,4,? FROM decision WHERE request_id=? ORDER BY id DESC LIMIT 1
+                """, requestId, jobId, requestId);
+        long workflowId = j.queryForObject("SELECT id FROM workflow_run WHERE request_id=?", Long.class, requestId);
+        j.update("""
+                INSERT INTO execution_action(workflow_run_id,decision_id,action_type,target_kind,target_id,
+                    idempotency_key,status,attempt_count,receipt)
+                SELECT w.id,w.decision_id,'START','JOB',?,'m16-secret-key','SUCCEEDED',1,
+                    '{"host":"secret-host"}'
+                FROM workflow_run w WHERE w.id=?
+                """, jobId, workflowId);
+
+        JsonNode actions = ok(get("/api/compute/agent/actions/results?workflowId=" + workflowId, admin));
+        assertEquals(1, actions.size(), actions.toString());
+        assertTrue(actions.get(0).path("receipt").isMissingNode());
+        assertTrue(actions.get(0).path("idempotency_key").isMissingNode());
+        assertEquals("SUCCEEDED", actions.get(0).path("status").asText());
+    }
+
     private FailedJob failedJob(HttpHeaders headers) {
         long requestId = ok(post("/api/compute/requests", requestBody(UUID.randomUUID().toString()), headers))
                 .path("id").asLong();
