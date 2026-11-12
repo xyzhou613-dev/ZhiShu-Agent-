@@ -165,6 +165,13 @@ MySQL 8.4 随机隔离库验证了业务库 V5、再次迁移无变化、六阶�
 - 医疗接口在算力模式返回 404；`/mcp` 返回 404；`/api/compute/**` 和本体、映射、治理接口不受影响。匿名访问运行环境接口返回 401。
 - 没有新增平台或业务迁移；没有刷新共享观测、发布共享规则或执行真实节点动作。
 
+### M-17 修正：保留全局通知与 LLM 路由
+
+浏览器验收发现算力页面顶栏每 60 秒轮询 `/api/notice/unread-count` 和 `/api/llm/routes`，这两个通用基础设施接口原先被误纳入医疗隔离，导致重复出现“算力运行模式未启用该医疗专用接口”提示。已改为只隔离 `/api/llm/log`、`/api/llm/stats`，通知中心和 LLM 路由健康保持可用。
+
+- `ComputeRuntimeSettingsTest` 6 项与 `ComputeMysqlSmokeTest` 19 项复跑通过；实测 `/api/notice/unread-count`、`/api/llm/routes` 返回 200，`/api/llm/log/list`、`/api/flow/patients` 返回 404。
+- 本次修正没有改变业务数据、权限矩阵或数据库结构。
+
 ## M-16 验证记录（2026-11-12）
 
 按《功能改造与新增清单 v0.2》完成基础权限和字段敏感标注：统一操作目录、`@ComputeAccess` 注解与拦截器、拒绝审计、字段目录、Agent 只读投影。详细说明见 [M-16](A800-compute-m16.md)。

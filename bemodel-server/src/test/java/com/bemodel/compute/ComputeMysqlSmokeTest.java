@@ -621,6 +621,12 @@ class ComputeMysqlSmokeTest {
                 new HttpEntity<>(Map.of(), headers), JsonNode.class).getStatusCode().value());
         assertEquals(200, http.exchange("/api/compute/groups", HttpMethod.GET,
                 new HttpEntity<>(headers), JsonNode.class).getStatusCode().value());
+        assertEquals(200, http.exchange("/api/notice/unread-count", HttpMethod.GET,
+                new HttpEntity<>(headers), JsonNode.class).getStatusCode().value());
+        assertEquals(200, http.exchange("/api/llm/routes", HttpMethod.GET,
+                new HttpEntity<>(headers), JsonNode.class).getStatusCode().value());
+        assertEquals(404, http.exchange("/api/llm/log/list", HttpMethod.GET,
+                new HttpEntity<>(headers), JsonNode.class).getStatusCode().value());
         assertEquals(401, http.getForEntity("/api/compute/runtime", JsonNode.class).getStatusCode().value());
     }
 

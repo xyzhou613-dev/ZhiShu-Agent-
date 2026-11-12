@@ -23,12 +23,17 @@ import java.util.Locale;
 final class ComputeRuntimeSettings {
     enum Mode { SIMULATION, REAL }
 
-    /** 算力运行模式不启用的医疗专用入口；边界匹配在 {@link #matchedIsolatedPath(String)}。 */
+    /**
+     * 算力运行模式不启用的医疗专用入口；边界匹配在 {@link #matchedIsolatedPath(String)}。
+     *
+     * <p>通知中心和 LLM 路由健康是全局布局轮询的通用基础设施，不能因为算力模式而返回 404；
+     * 只隔离 LLM 调用日志/统计这类可能包含医疗提示词与原始明细的接口。</p>
+     */
     static final List<String> ISOLATED_MEDICAL_PATHS = List.of(
             "/api/alert", "/api/qc", "/api/rca", "/api/flow", "/api/lab", "/api/simulation",
             "/api/value", "/api/cs", "/api/recon", "/api/search", "/api/knowledge", "/api/trace",
-            "/api/link", "/api/impact", "/api/llm", "/api/rdf/patient", "/api/proposal", "/api/drift",
-            "/api/reconcile", "/api/inspect", "/api/notice", "/api/metric", "/mcp");
+            "/api/link", "/api/impact", "/api/llm/log", "/api/llm/stats", "/api/rdf/patient",
+            "/api/proposal", "/api/drift", "/api/reconcile", "/api/inspect", "/api/metric", "/mcp");
 
     private static final Logger LOG = LoggerFactory.getLogger(ComputeRuntimeSettings.class);
 

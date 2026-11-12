@@ -54,6 +54,10 @@ class ComputeRuntimeSettingsTest {
         assertNull(ComputeRuntimeSettings.matchedIsolatedPath("/mcp-extra"));
         assertEquals("/api/rdf/patient", ComputeRuntimeSettings.matchedIsolatedPath("/api/rdf/patient/123"));
         assertNull(ComputeRuntimeSettings.matchedIsolatedPath("/api/rdf/ontology"));
+        assertEquals("/api/llm/log", ComputeRuntimeSettings.matchedIsolatedPath("/api/llm/log/list"));
+        assertEquals("/api/llm/stats", ComputeRuntimeSettings.matchedIsolatedPath("/api/llm/stats"));
+        assertNull(ComputeRuntimeSettings.matchedIsolatedPath("/api/llm/routes"));
+        assertNull(ComputeRuntimeSettings.matchedIsolatedPath("/api/notice/unread-count"));
     }
 
     @Test
@@ -62,7 +66,8 @@ class ComputeRuntimeSettingsTest {
             assertFalse(path.startsWith("/api/compute"), path);
         }
         for (String path : new String[]{"/api/compute/groups", "/api/compute/runtime", "/api/concept/list",
-                "/api/datasource/list", "/api/mapping/list", "/api/gov/issues", "/api/auth/login"}) {
+                "/api/datasource/list", "/api/mapping/list", "/api/gov/issues", "/api/auth/login",
+                "/api/notice/unread-count", "/api/llm/routes"}) {
             assertNull(ComputeRuntimeSettings.matchedIsolatedPath(path), path);
         }
     }

@@ -16,7 +16,9 @@ M-17 把算力运行环境和医疗演示彻底分开，并把“模拟还是真
 | 启动检查 | `ComputeRuntimeGuard` 打印模式、隔离状态和重启保护，启动日志可直接核对 |
 | 重启保护 | Flyway `clean-disabled=true`、`validate-on-migrate=true`；已有管理员密码、数据源登记和业务数据不被启动覆盖 |
 
-医疗隔离入口包括：`/api/alert`、`/api/qc`、`/api/rca`、`/api/flow`、`/api/lab`、`/api/simulation`、`/api/value`、`/api/cs`、`/api/recon`、`/api/search`、`/api/knowledge`、`/api/trace`、`/api/link`、`/api/impact`、`/api/llm`、`/api/rdf/patient`、`/api/proposal`、`/api/drift`、`/api/reconcile`、`/api/inspect`、`/api/notice`、`/api/metric`、`/mcp`。本体、规范、映射、治理和算力接口不受影响。
+医疗隔离入口包括：`/api/alert`、`/api/qc`、`/api/rca`、`/api/flow`、`/api/lab`、`/api/simulation`、`/api/value`、`/api/cs`、`/api/recon`、`/api/search`、`/api/knowledge`、`/api/trace`、`/api/link`、`/api/impact`、`/api/llm/log`、`/api/llm/stats`、`/api/rdf/patient`、`/api/proposal`、`/api/drift`、`/api/reconcile`、`/api/inspect`、`/api/metric`、`/mcp`。本体、规范、映射、治理和算力接口不受影响。
+
+通知中心 `/api/notice/**` 和 LLM 路由健康 `/api/llm/routes` 是全局布局轮询的通用基础设施，算力模式保留可用；只隔离可能含医疗提示词和原始明细的 `/api/llm/log`、`/api/llm/stats`。这样算力页面不会因为顶栏轮询出现“医疗接口未启用”的重复提示。
 
 ## 看哪里
 
