@@ -12,6 +12,7 @@ import io.modelcontextprotocol.spec.McpSchema.Tool;
 import io.modelcontextprotocol.spec.McpSchema.ToolAnnotations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ import java.util.Map;
  * 既有 SQL 白名单+只读校验+脱敏+bm_llm_log 审计全在原链路内,零改动。
  */
 @Component
+@Profile("!compute")
 @Slf4j
 @RequiredArgsConstructor
 public class BemodelMcpTools {

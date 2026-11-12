@@ -2,12 +2,14 @@ package com.bemodel.notice;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /** 指标定时巡检：cron 读 bemodel.inspect.cron（默认每 30 分钟），纯探针 SQL 不依赖 LLM */
 @Slf4j
 @Component
+@Profile("!compute")
 @RequiredArgsConstructor
 public class InspectScheduler {
 

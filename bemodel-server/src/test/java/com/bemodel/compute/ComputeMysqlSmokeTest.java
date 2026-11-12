@@ -600,6 +600,30 @@ class ComputeMysqlSmokeTest {
                 "SELECT COUNT(*) FROM compute_job WHERE request_id = ?", Integer.class, failed.requestId()));
     }
 
+    @Test
+    void exposesSimulationRuntimeAndIsolatesMedicalApis() {
+        var headers = adminHeaders();
+        JsonNode runtime = ok(get("/api/compute/runtime", headers));
+        assertEquals("SIMULATION", runtime.path("mode").asText(), runtime.toString());
+        assertTrue(runtime.path("simulation").asBoolean());
+        assertFalse(runtime.path("medicalApisEnabled").asBoolean());
+        assertTrue(runtime.path("isolatedMedicalPaths").size() >= 10);
+        assertTrue(runtime.path("databases").path("separated").asBoolean(), runtime.toString());
+        assertFalse(runtime.path("anonymousWritesAllowed").asBoolean());
+        assertFalse(runtime.path("agentWritesAllowed").asBoolean());
+        assertTrue(runtime.path("restartProtection").size() >= 4);
+        assertFalse(runtime.path("authorizesExecution").asBoolean());
+        assertEquals(404, http.exchange("/api/cs/ask", HttpMethod.POST,
+                new HttpEntity<>(Map.of("question", "x"), headers), JsonNode.class).getStatusCode().value());
+        assertEquals(404, http.exchange("/api/flow/patients", HttpMethod.GET,
+                new HttpEntity<>(headers), JsonNode.class).getStatusCode().value());
+        assertEquals(404, http.exchange("/mcp", HttpMethod.POST,
+                new HttpEntity<>(Map.of(), headers), JsonNode.class).getStatusCode().value());
+        assertEquals(200, http.exchange("/api/compute/groups", HttpMethod.GET,
+                new HttpEntity<>(headers), JsonNode.class).getStatusCode().value());
+        assertEquals(401, http.getForEntity("/api/compute/runtime", JsonNode.class).getStatusCode().value());
+    }
+
     private FailedJob failedJob(HttpHeaders headers) {
         long requestId = ok(post("/api/compute/requests", requestBody(UUID.randomUUID().toString()), headers))
                 .path("id").asLong();

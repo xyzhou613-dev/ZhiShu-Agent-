@@ -5,6 +5,9 @@ spring:
     password: ${COMPUTE_MYSQL_PASSWORD}
   flyway:
     locations: classpath:db/compute-platform
+    # 重启只执行未应用过的版本化迁移；禁止自动清理已有业务库。
+    clean-disabled: true
+    validate-on-migrate: true
 
 # Business database is independent from the primary platform pool/transaction manager.
 # Empty URL/credentials inherit the resolved platform endpoint/credentials with schema a800_compute.
@@ -15,6 +18,17 @@ compute:
     password: ${COMPUTE_BUSINESS_PASSWORD:}
     maximum-pool-size: 4
     minimum-idle: 1
+  runtime:
+    # 显式模拟/真实开关。REAL 在 N-13/N-16 真实节点采集与执行适配器接入前会拒绝启动。
+    mode: ${COMPUTE_RUNTIME_MODE:SIMULATION}
+    # 演示数据标识；模拟模式只使用迁移中插入一次的 A800_DEMO_FIXTURE 数据。
+    demo-dataset: ${COMPUTE_DEMO_DATASET:A800_DEMO_FIXTURE}
+    # 算力模式默认不提供医疗专用控制器、定时任务和 MCP 工具；跨域联调时才显式打开。
+    medical-apis-enabled: ${COMPUTE_MEDICAL_APIS_ENABLED:false}
+  queue:
+    # 队列自动重评默认关闭；资源变化事件仍可在同进程内触发一次重评。
+    recheck-enabled: ${COMPUTE_QUEUE_RECHECK_ENABLED:false}
+    recheck-delay-ms: 30000
 
 bemodel:
   inspect:

@@ -4,4 +4,5 @@ package com.bemodel.compute;
 public final class ComputeVersions {
     private ComputeVersions() {}
     public static final String FORMULAS="a800-formulas-v1";
+    public static final String RUNTIME="a800-runtime-v1";
 }

@@ -7,6 +7,7 @@ import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 /**
  * MCP 只读开放端点(借鉴 1「查询即应用」):
@@ -18,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
  *   升级缝=后续加一个 servlet filter,协议与工具层零改动。
  */
 @Configuration
+@Profile("!compute")
 public class McpConfig {
 
     @Bean
