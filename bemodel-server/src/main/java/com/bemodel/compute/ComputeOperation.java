@@ -27,6 +27,7 @@ enum ComputeOperation {
     WORKFLOW_QUERY("查询流程进度", Kind.READ, "ADMIN", "EDITOR", "REVIEWER", "VIEWER"),
 
     ACTION_RESULT_QUERY("查询动作回执", Kind.READ, "ADMIN", "EDITOR"),
+    ACTION_RECONCILE("核对未知动作结果", Kind.WRITE, "ADMIN", "EDITOR"),
     ACTION_RETRY("人工重试动作", Kind.WRITE, "ADMIN"),
     ACTION_CONTRACT_QUERY("查询动作与硬约束目录", Kind.READ, "ADMIN", "EDITOR", "REVIEWER", "VIEWER"),
 

@@ -110,7 +110,12 @@ final class ComputeFieldCatalog {
             p(ACTION_RESULT, "finished_at", ComputeSensitivity.PUBLIC, true, "结束时间"),
             p(ACTION_RESULT, "error_code", ComputeSensitivity.INTERNAL, true, "错误码，不含原始输出"),
             p(ACTION_RESULT, "idempotency_key", ComputeSensitivity.INTERNAL, false, "固定操作编号不输出"),
-            p(ACTION_RESULT, "receipt", ComputeSensitivity.SENSITIVE, false, "节点回执原文可能含主机、命令和日志")
+            p(ACTION_RESULT, "receipt", ComputeSensitivity.SENSITIVE, false, "节点回执原文可能含主机、命令和日志"),
+            p(ACTION_RESULT, "input", ComputeSensitivity.SENSITIVE, false, "执行输入原文可能含启动参数和凭据，不进入 Agent"),
+            p(ACTION_RESULT, "events[].payload", ComputeSensitivity.SENSITIVE, false, "动作历史回执和调用人不进入 Agent"),
+            p(ACTION_RESULT, "executorKey", ComputeSensitivity.INTERNAL, false, "固定执行器配置身份"),
+            p(ACTION_RESULT, "reconcileCount", ComputeSensitivity.PUBLIC, false, "结果核对次数；新接口字段尚未接入 Agent 投影"),
+            p(ACTION_RESULT, "retryAllowed", ComputeSensitivity.INTERNAL, false, "执行器确认失败后的安全重试标记")
     );
 
     static List<ComputeFieldPolicy> all() {
