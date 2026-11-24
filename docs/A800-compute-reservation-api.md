@@ -60,6 +60,8 @@ POST 的 `data` 字段：
 
 若 B 组由模型 B 实际持有且满足暂停条件，可以为训练写入 PENDING，同时固定实际持有修订用于后续恢复；模型 B 的 hold_period 和 current_hold_id 保持原状。N-07 不停止模型、不切换持有、不将分配置为 OCCUPIED，也不创建容器执行流程；这些留给后续执行条目。
 
+V15 已将正式回执接入 [B 组抢占恢复流程](A800-compute-preemption-recovery-api.md)。创建流程还须为实际修订显式登记恢复 GPU 需求和 harness 责任；缺失时不能通知或摘流。恢复中的容量保留计入所有组的后续投影；原组尚欠恢复时 N-07 返回 GROUP_RECOVERY_OWED，已进入恢复预留时返回 GROUP_RESTORING。旧样例分配不能替代正式回执。
+
 详情返回 `receipt`、`decisions`、`checks`。后两项字段沿用数据库命名，例如 `previous_decision_id`、`rule_code`、`rule_version_id`、`definition_version`、`reason_code`；`facts` 和 `output` 为 JSON 对象。快照全文可通过 `GET /api/compute/evidence-snapshots/{snapshotId}` 查询。分页返回沿用 `list/total/pageNum/pageSize`。
 
 ## PowerShell 示例

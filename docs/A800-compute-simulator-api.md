@@ -131,4 +131,6 @@ Invoke-RestMethod -Uri "$baseUrl/api/compute/simulator/operations?operationKey=$
 mvn -f bemodel-server/pom.xml '-Dtest=ComputeSimulatorDatabaseTest,ComputeSimulatorProfileTest,ComputeSimulatorHttpTest' test
 ```
 
-N-11 已接通空闲 FLEX 单卡流程，M-15 工作台可从申请走到停止回收；已有部署的抢占、恢复及业务收尾扩展仍留给后续。详见 [单卡流程与工作台](A800-compute-single-card-workflow-api.md)。
+N-11 已接通空闲 FLEX 单卡流程，并在 V15 增加 [B 组两卡抢占恢复](A800-compute-preemption-recovery-api.md)；M-15 工作台复用本模拟器。完整让位仲裁、全部异常策略与真实执行仍未完成。
+
+观测采集体新增可选布尔值 `includeDeployments`，默认 false，旧调用仍只采集 GPU 和节点。为 true 时同时写 DEPLOYMENT 观测，包含 revisionId、running、healthy、acceptingTraffic、inFlightRequests；证据采信当前复用 NODE_WATERMARK 的发布来源及时效策略。B 流程在模拟器开启时逐步采集新观测，不更改历史观测。RESTORE 使用流程固定的原卡组和 restore_revision_id，不跟随后续配置修订变化；恢复启动成功仍不能直接接流量，须 HEALTH_CHECK 和 RESUME_TRAFFIC。
