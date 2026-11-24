@@ -37,7 +37,7 @@ compute:
 | PUT /api/compute/simulator/scenarios | ADMIN | 在操作首次接收前配置延迟、失败或超时 |
 | GET /api/compute/simulator/operations?operationKey=... | ADMIN / EDITOR | 查询模拟端原操作、计数及回执 |
 
-此处不提供任意操作执行入口。动作仍由后端流程通过 N-12 的 prepare、dispatch 接入，HTTP 只可按 N-12 规则核对和安全重试。N-11 尚未实现，所以原样例不会自动生成流程或开始停服、训练。HANDOVER、FINALIZE 属于业务事务，不交给模拟执行器冒充成功。
+此处不提供任意操作执行入口。动作仍由后端流程通过 N-12 的 prepare、dispatch 接入，HTTP 只可按 N-12 规则核对和安全重试。N-11 现已接通空闲 FLEX 单卡流程；旧样例仍不会自动生成流程或开始停服、训练。HANDOVER、FINALIZE 属于业务事务，不交给模拟执行器冒充成功。
 
 ## 模拟状态与节点动作
 
@@ -130,3 +130,5 @@ Invoke-RestMethod -Uri "$baseUrl/api/compute/simulator/operations?operationKey=$
 ```powershell
 mvn -f bemodel-server/pom.xml '-Dtest=ComputeSimulatorDatabaseTest,ComputeSimulatorProfileTest,ComputeSimulatorHttpTest' test
 ```
+
+N-11 已接通空闲 FLEX 单卡流程，M-15 工作台可从申请走到停止回收；已有部署的抢占、恢复及业务收尾扩展仍留给后续。详见 [单卡流程与工作台](A800-compute-single-card-workflow-api.md)。

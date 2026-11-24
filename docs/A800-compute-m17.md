@@ -86,3 +86,5 @@ spring:
 - 队列自动重评默认关闭，避免演示环境后台任务在无人值守时改动队列；资源变化事件仍可在同进程内触发一次重评。
 
 N-13 已提供可显式开启的持久化模拟器，独立来源为 A800_SIMULATOR_V1；默认关闭，开启及初始化方法见 [模拟器接口](A800-compute-simulator-api.md)。固定教学样例仍只插入一次，启动不会刷新其时间。
+
+单卡流程现已支持 compute.workflow.enabled（默认 false）及 poll-delay-ms（默认 5000）；重启保留步骤与原操作编号，未过期领取不抢占。runtime 返回 workflowEnabled。详见 [单卡流程](A800-compute-single-card-workflow-api.md)。
