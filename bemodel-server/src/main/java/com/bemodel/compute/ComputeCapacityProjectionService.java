@@ -28,7 +28,7 @@ final class ComputeCapacityProjectionService {
             JOIN evidence_snapshot s ON s.id=r.snapshot_id JOIN rule_set v ON v.id=r.rule_set_id
             """;
     private final ComputeDatabase.Store store;
-    private final ComputeRuleRunner runner;
+    final ComputeRuleRunner runner;
     private final ComputeEvidenceService evidence;
     private final ObjectMapper json;
     ComputeCapacityProjectionService(ComputeDatabase.Store store,ComputeRuleRunner runner,ComputeEvidenceService evidence,ObjectMapper json){this.store=store;this.runner=runner;this.evidence=evidence;this.json=json;}
@@ -39,7 +39,7 @@ final class ComputeCapacityProjectionService {
             if(body.has(field))throw new BizException("投影规格、目标和账本由服务端读取，不能由调用方覆盖");
         String mode=body.path("mode").asText("PLAN");
         if(body.has("mode")&&!body.path("mode").isTextual() || !List.of("PLAN","RESTORE").contains(mode))throw new BizException("投影 mode 必须是 PLAN 或 RESTORE");
-        for(String field:List.of("pausedDeploymentId","restoreRevisionId"))if(body.has(field)
+        for(String field:List.of("pausedDeploymentId","restoreRevisionId","restoreSpecId","deploymentRuntimeId"))if(body.has(field)
                 && (!body.path(field).isIntegralNumber()||!body.path(field).canConvertToLong()||body.path(field).asLong()<=0))throw new BizException(field+" 必须是正整数");
         if("RESTORE".equals(mode) && (!body.has("restoreRevisionId")||body.has("pausedDeploymentId")))throw new BizException("恢复投影需要 restoreRevisionId，不能同时指定拟暂停部署");
         if("PLAN".equals(mode)&&body.has("restoreRevisionId"))throw new BizException("方案投影不能指定恢复修订");

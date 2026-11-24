@@ -77,6 +77,8 @@ final class ComputeReservationService {
         queue.refreshLocked(nodeKey,nodeId);entry=queue.detail(requestId);
         if(entry.targetGroupId()==null)return waiting(requestId,"QUEUE_NO_TARGET",null);
         long groupId=entry.targetGroupId();var rules=runner.pinActive();
+        if(j.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='compute_restore_reservation'",Integer.class)>0 && j.queryForObject("SELECT COUNT(*) FROM compute_restore_reservation WHERE group_id=?",Integer.class,groupId)>0)return waiting(requestId,"GROUP_RESTORING",null);
+        if(j.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='deployment_recovery_spec'",Integer.class)>0 && j.queryForObject("SELECT COUNT(*) FROM workflow_run WHERE group_id=? AND original_deployment_id IS NOT NULL AND status NOT IN ('COMPLETED','CANCELLED') AND recovery_state NOT IN ('RESTORED','NOT_REQUIRED')",Integer.class,groupId)>0)return waiting(requestId,"GROUP_RECOVERY_OWED",null);
         var queueRows=j.queryForList("""
                 SELECT request_id,priority,DATE_FORMAT(submitted_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS submitted_at
                 FROM compute_queue WHERE node_id=? AND target_group_id=? AND status='WAITING'
@@ -160,20 +162,23 @@ final class ComputeReservationService {
     }
 
     private long decision(long request,String kind,Long previous,JsonNode plan,List<ComputeCapacityProjector.Check> checks,ComputeEvidenceService.Detail captured,ComputeRuleRunner.Snapshot rules){
+        return decision(request,kind,previous,plan,checks,captured,rules,"APPROVED","PASS");
+    }
+    long decision(long request,String kind,Long previous,JsonNode plan,List<ComputeCapacityProjector.Check> checks,ComputeEvidenceService.Detail captured,ComputeRuleRunner.Snapshot rules,String outcome,String reason){
         var j=store.jdbc();var old=j.queryForList("SELECT d.id,d.as_of FROM current_decision c JOIN decision d ON d.id=c.decision_id WHERE c.request_id=? AND c.decision_kind=? FOR UPDATE",request,kind);
         Long supersedes=old.isEmpty()?null:((Number)old.getFirst().get("id")).longValue();
         if(!old.isEmpty()&&!captured.snapshot().asOf().isAfter(((LocalDateTime)old.getFirst().get("as_of")).toInstant(ZoneOffset.UTC)))throw new BizException("既有决策时间不早于当前快照，请核对时钟");
         long id=ComputeReleaseBridge.insert(j,"""
                 INSERT INTO decision(request_id,kind,outcome,reason_code,as_of,snapshot_id,target_kind,target_id,plan,previous_decision_id,supersedes_decision_id,rule_set_id)
-                VALUES(?,?,'APPROVED','PASS',?,?,'GPU_GROUP',?,?,?,?,?)
-                """,request,kind,utc(captured.snapshot().asOf()),captured.snapshot().id(),plan.path("targetGroupId").asLong(),plan.toString(),previous,supersedes,rules.ruleSetId());
+                VALUES(?,?,?,?,?,?,'GPU_GROUP',?,?,?,?,?)
+                """,request,kind,outcome,reason,utc(captured.snapshot().asOf()),captured.snapshot().id(),plan.path("targetGroupId").asLong(),plan.toString(),previous,supersedes,rules.ruleSetId());
         for(var c:checks){
             long checkId=ComputeReleaseBridge.insert(j,"INSERT INTO rule_check(decision_id,rule_version_id,rule_set_id,definition_version,result,reason_code,facts,output,checked_at) VALUES(?,?,?,?,?,?,?,?,?)",id,c.rule().ruleVersionId(),rules.ruleSetId(),c.rule().definitionVersion(),c.result().name(),c.reasonCode(),c.facts().toString(),c.output().toString(),utc(captured.snapshot().asOf()));
             for(var e:captured.evidence())j.update("INSERT INTO rule_check_evidence(rule_check_id,evidence_id) VALUES(?,?)",checkId,e.id());
         }
         j.update("INSERT INTO current_decision(request_id,decision_kind,decision_id) VALUES(?,?,?) ON DUPLICATE KEY UPDATE decision_id=VALUES(decision_id)",request,kind,id);return id;
     }
-    private ComputeCapacityProjector.Check audit(ComputeRuleRunner.Snapshot rules,List<ComputeCapacityProjector.Check> checks,ComputeEvidenceService.Detail captured){
+    ComputeCapacityProjector.Check audit(ComputeRuleRunner.Snapshot rules,List<ComputeCapacityProjector.Check> checks,ComputeEvidenceService.Detail captured){
         var f=json.createObjectNode().put("snapshotId",Long.toString(captured.snapshot().id())).put("asOf",captured.snapshot().asOf().toString());var sources=f.putArray("evidence");
         for(var e:captured.evidence())sources.addObject().put("evidenceId",Long.toString(e.id())).put("snapshotId",Long.toString(captured.snapshot().id())).put("source",e.source()).put("observedAt",e.observedAt().toString()).put("validUntil",e.validUntil().toString());
         var listed=f.putArray("checks");for(var c:checks){var row=listed.addObject().put("ruleCode",c.rule().ruleCode()).put("ruleVersion",c.rule().ruleVersion()).put("result",c.result().name());var refs=row.putArray("evidenceIds");for(var e:captured.evidence())refs.add(Long.toString(e.id()));}

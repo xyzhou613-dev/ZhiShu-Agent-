@@ -57,7 +57,7 @@ final class ComputeEvidenceService {
         }
     }
 
-    /** Caller must already hold the business datasource's REPEATABLE_READ transaction. */
+    /** Caller uses REPEATABLE_READ, or READ_COMMITTED with node/group/request locks for workflow writes. */
     Detail capture(JsonNode body, ComputeRuleRunner.Snapshot rules, Instant asOf) {
         validateRequest(body);
         JdbcTemplate j = store.jdbc();
@@ -128,6 +128,9 @@ final class ComputeEvidenceService {
                 WHERE g.node_id=? OR q.target_group_id IS NULL ORDER BY q.priority DESC,q.submitted_at,q.request_id
                 """, nodeId)));
         ledger.put("ledgerIsHistorical", false);
+        if(j.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='compute_restore_reservation'",Integer.class)>0)
+            ledger.set("restoreReservations",json.valueToTree(j.queryForList("SELECT * FROM compute_restore_reservation WHERE node_id=? ORDER BY workflow_id",nodeId)));
+        if(body.has("restoreSpecId"))ledger.set("recoverySpecs",json.valueToTree(j.queryForList("SELECT s.* FROM deployment_recovery_spec s JOIN deployment_revision r ON r.id=s.revision_id JOIN deployment d ON d.id=r.deployment_id JOIN gpu_group g ON g.id=d.group_id WHERE s.id=? AND g.node_id=?",body.path("restoreSpecId").asLong(),nodeId)));
         ledger.put("readAt", asOf.toString());
 
         JsonNode settings = read(j.queryForObject("SELECT settings FROM rule_set WHERE id=?", String.class, rules.ruleSetId()));
@@ -146,7 +149,7 @@ final class ComputeEvidenceService {
         var observations = j.queryForList("""
                 WITH ranked AS (
                   SELECT o.*,ROW_NUMBER() OVER(PARTITION BY subject_kind,subject_id ORDER BY observed_at DESC,id DESC) AS rn
-                  FROM resource_observation o WHERE node_id=? AND observed_at<=? AND subject_kind IN ('GPU','NODE')
+                  FROM resource_observation o WHERE node_id=? AND observed_at<=? AND subject_kind IN ('GPU','NODE','DEPLOYMENT')
                 ) SELECT * FROM ranked WHERE rn=1
                 """, nodeId, utc(asOf));
         var issues = new ArrayList<String>();
@@ -157,6 +160,11 @@ final class ComputeEvidenceService {
         for (var card : cards) collect(pending, issues, observations, "GPU", ((Number) card.get("id")).longValue(),
                 card.get("gpu_uuid").toString(), gpuPolicy, asOf, ruleMaxAge);
         collect(pending, issues, observations, "NODE", nodeId, node.get("node_key").toString(), nodePolicy, asOf, ruleMaxAge);
+        if(body.has("deploymentRuntimeId")){
+            long deployment=body.path("deploymentRuntimeId").asLong();
+            if(j.queryForObject("SELECT COUNT(*) FROM deployment d JOIN gpu_group g ON g.id=d.group_id WHERE d.id=? AND g.node_id=?",Integer.class,deployment,nodeId)!=1)throw new BizException("运行观测部署不属于节点");
+            collect(pending,issues,observations,"DEPLOYMENT",deployment,"deployment:"+deployment,nodePolicy,asOf,ruleMaxAge);
+        }
         manifest.set("issues", json.valueToTree(issues));
         manifest.put("usable", issues.isEmpty());
         long id = ComputeReleaseBridge.insert(j, """
@@ -196,7 +204,7 @@ final class ComputeEvidenceService {
                 .put("sourceSubjectKey", Objects.toString(row.get("source_subject_key"), ""))
                 .put("status", row.get("status").toString());
         JsonNode raw = row.get("values_json") == null ? json.nullNode() : read(row.get("values_json").toString());
-        List<String> keys = "GPU".equals(kind) ? List.of("healthy", "occupied")
+        List<String> keys = "GPU".equals(kind) ? List.of("healthy", "occupied") : "DEPLOYMENT".equals(kind)?List.of("healthy","running","acceptingTraffic","inFlightRequests","revisionId")
                 : List.of("memoryUsedBytes", "temporaryUsedBytes", "persistentUsedBytes");
         var reasons = new ArrayList<String>();
         if (!"OK".equals(row.get("status"))) reasons.add("OBSERVATION_ERROR");
@@ -205,7 +213,7 @@ final class ComputeEvidenceService {
         if (!kind.equals(row.get("source_subject_kind")) || !sourceKey.equals(row.get("source_subject_key"))) reasons.add("SUBJECT_MISMATCH");
         for (String key : keys) {
             JsonNode value = raw.path(key);
-            boolean valid = "GPU".equals(kind) ? value.isBoolean()
+            boolean valid = "GPU".equals(kind)||List.of("healthy","running","acceptingTraffic").contains(key) ? value.isBoolean()
                     : value.isIntegralNumber() && value.canConvertToLong() && value.longValue() >= 0;
             if (!valid) reasons.add("INVALID_VALUE:" + key);
             else values.set(key, value);

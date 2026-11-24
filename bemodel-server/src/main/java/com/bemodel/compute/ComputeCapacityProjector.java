@@ -86,6 +86,7 @@ final class ComputeCapacityProjector {
         Bytes continuing=Bytes.zero(),reservations=Bytes.zero();
         for(JsonNode baseline:rows(ledger.path("deploymentBaselines")))if(paused==null || baseline.path("id").asLong()!=paused)continuing=continuing.plus(bytes(baseline));
         var included=new ArrayList<Long>();
+        for(JsonNode r:rows(ledger.path("restoreReservations")))if(!restore || r.path("group_id").asLong()!=targetId || r.path("revision_id").asLong()!=proposal.path("restoreRevisionId").asLong())reservations=reservations.plus(bytes(r));
         for(JsonNode a:rows(ledger.path("allocations"))) {
             if(!restore && own!=null && a.path("id").asLong()==own.path("id").asLong())continue;
             reservations=reservations.plus(bytes(a)); included.add(number(a,"id"));
@@ -116,8 +117,15 @@ final class ComputeCapacityProjector {
         }
         if(restore) {
             capacityFacts.set("groupCards",cardFacts); checks.add(evaluate(rules,"R-15",capacityFacts));
-            checks.add(unknown(rules,"R-03","UNKNOWN_RESTORE_GPU_REQUIREMENTS",json.createObjectNode()));
-            output.putNull("requiredVramBytesPerGpu").put("interconnectStatus","UNKNOWN");
+            JsonNode recovery=rows(ledger.path("recoverySpecs")).stream().filter(s->s.path("id").asLong()==proposal.path("restoreSpecId").asLong()&&s.path("revision_id").asLong()==proposal.path("restoreRevisionId").asLong()).findFirst().orElse(null);
+            if(recovery==null){checks.add(unknown(rules,"R-03","UNKNOWN_RESTORE_GPU_REQUIREMENTS",json.createObjectNode()));output.putNull("requiredVramBytesPerGpu").put("interconnectStatus","UNKNOWN");}
+            else {
+                var f=json.createObjectNode().put("vramBytesPerGpu",number(recovery,"vram_bytes_per_gpu")).put("requiredInterconnect",recovery.path("gpu_interconnect").asText()).put("groupInterconnect","UNKNOWN");
+                var vrams=f.putArray("selectedGpuVramBytes");for(var card:availableCards)vrams.add(number(card,"vram_bytes"));
+                f.set("requiredBytes",json.valueToTree(added.values()));f.set("availableBytes",json.valueToTree(new Bytes(Math.max(0,capacity.memoryBytes()-continuing.memoryBytes()-reservations.memoryBytes()),Math.max(0,capacity.temporaryBytes()-continuing.temporaryBytes()-reservations.temporaryBytes()),Math.max(0,capacity.persistentBytes()-continuing.persistentBytes()-reservations.persistentBytes())).values()));
+                checks.add("NONE".equals(recovery.path("gpu_interconnect").asText())?evaluate(rules,"R-03",f):unknown(rules,"R-03","UNKNOWN_INTERCONNECT",f));
+                output.put("restoreSpecId",number(recovery,"id")).put("requiredVramBytesPerGpu",number(recovery,"vram_bytes_per_gpu")).put("interconnectStatus","NONE".equals(recovery.path("gpu_interconnect").asText())?"NOT_REQUIRED":"UNKNOWN");
+            }
         } else {
             checks.add(evaluate(rules,"R-02",capacityFacts));
             if(targetId==null) {

@@ -109,7 +109,8 @@ final class ComputeSimulatorService {
     Map<String,Object> operation(String operationKey){guard();var rows=store.jdbc().queryForList("SELECT operation_key,action_id,node_id,status,scenario_json,attempt_count,send_count,query_count,effect_count,ready_at,receipt,error_code,retry_allowed FROM compute_simulator_operation WHERE operation_key=? AND node_id=?",key(operationKey),node(runtime.nodeKey()));
         if(rows.isEmpty())throw new BizException("模拟操作不存在");var row=rows.getFirst();for(String field:List.of("scenario_json","receipt"))if(row.get(field)!=null)row.put(field,read(row.get(field)));row.put("ready_at",instant(row.get("ready_at")));return row;}
 
-    Map<String,Object> observe(String nodeKey,JsonNode body){guard();fields(body,Set.of("validForSeconds","failGpuIds","failNode"));
+    Map<String,Object> observe(String nodeKey,JsonNode body){guard();fields(body,Set.of("validForSeconds","failGpuIds","failNode","includeDeployments"));
+        if(body.has("includeDeployments")&&!body.path("includeDeployments").isBoolean())throw new BizException("includeDeployments 必须为布尔值");
         int ttl=body.has("validForSeconds")?integer(body,"validForSeconds",1,300):30;
         if(body.has("failNode")&&!body.path("failNode").isBoolean())throw new BizException("failNode 必须为布尔值");
         Set<Long> failed=new HashSet<>();if(body.has("failGpuIds")){if(!body.path("failGpuIds").isArray())throw new BizException("failGpuIds 必须是数组");for(JsonNode id:body.path("failGpuIds")){if(!id.isIntegralNumber()||!id.canConvertToLong()||id.asLong()<=0||!failed.add(id.asLong()))throw new BizException("失败 GPU 编号必须为不重复正整数");}}
@@ -121,6 +122,7 @@ final class ComputeSimulatorService {
             for(var card:cards){long id=number(card,"id");var value=object(state.path("gpus"),id);var sample=json.createObjectNode().put("simulation",true).put("healthy",value.path("healthy").asBoolean()).put("occupied",!value.path("owner").isNull());
                 ids.add(observation(node,"GPU",id,card.get("gpu_uuid").toString(),at,ttl,failed.contains(id)?null:sample));}
             var used=usage(state);ids.add(observation(node,"NODE",node,nodeKey,at,ttl,body.path("failNode").asBoolean()?null:used));
+            if(body.path("includeDeployments").asBoolean())state.path("deployments").fields().forEachRemaining(e->{var row=(ObjectNode)e.getValue().deepCopy();row.put("simulation",true);ids.add(observation(node,"DEPLOYMENT",Long.parseLong(e.getKey()),"deployment:"+e.getKey(),at,ttl,row));});
             return Map.<String,Object>of("simulation",true,"source",SOURCE,"nodeKey",nodeKey,"observedAt",at,"validUntil",at.plusSeconds(ttl),"observationIds",ids);
         });events.publishEvent(new ComputeQueueScheduler.ResourceChanged(nodeKey));return result;}
 
@@ -170,7 +172,7 @@ final class ComputeSimulatorService {
                 var revision=store.jdbc().queryForList("SELECT r.* FROM workflow_run w JOIN deployment_revision r ON r.id=w.restore_revision_id WHERE w.id=? AND r.deployment_id=?",c.workflowId(),c.targetId());
                 if(revision.size()!=1)throw new BizException("SIMULATED_RESTORE_REVISION_MISSING");
                 var row=runtimeRow(revision.getFirst()).put("revisionId",number(revision.getFirst(),"id")).put("acceptingTraffic",false).put("inFlightRequests",0);
-                occupy(state,row,groupCards(state,store.jdbc().queryForObject("SELECT group_id FROM deployment WHERE id=?",Long.class,c.targetId())),"DEPLOYMENT:"+c.targetId());
+                occupy(state,row,groupCards(state,store.jdbc().queryForObject("SELECT group_id FROM workflow_run WHERE id=?",Long.class,c.workflowId())),"DEPLOYMENT:"+c.targetId());
                 ((ObjectNode)state.path("deployments")).set(Long.toString(c.targetId()),row);receipt.put("restoreRevisionId",number(revision.getFirst(),"id")).put("running",true);
             }
             case "HEALTH_CHECK", "RESUME_TRAFFIC" -> {
