@@ -25,7 +25,7 @@ final class ComputeRuntimeController {
     record RuntimeInfo(String version, String mode, boolean simulation, String nodeKey, String demoDataset,
                        boolean medicalApisEnabled, List<String> isolatedMedicalPaths, Schedulers schedulers,
                        Databases databases, boolean anonymousWritesAllowed, boolean agentWritesAllowed,
-                       List<String> restartProtection, String realAdapters, boolean simulatorEnabled, boolean workflowEnabled, boolean authorizesExecution) {}
+                       List<String> restartProtection, String realAdapters, boolean simulatorEnabled, boolean workflowEnabled, boolean recoveryWorkflowEnabled, boolean authorizesExecution) {}
 
     private final ComputeRuntimeSettings settings;
     private final ComputeDatabase.Store store;
@@ -56,7 +56,7 @@ final class ComputeRuntimeController {
                 false, false,
                 List.of("FLYWAY_VERSIONED_ONLY", "EXISTING_ADMIN_PASSWORD_KEPT", "DATASOURCE_REGISTRATION_KEPT",
                         "DEMO_FIXTURE_INSERTED_ONCE"),
-                "N-16 NOT_CONNECTED", simulatorEnabled, workflowEnabled, false));
+                "N-16 NOT_CONNECTED", simulatorEnabled, workflowEnabled, true, false));
     }
 
     private static String schema(String jdbcUrl) {
