@@ -31,7 +31,7 @@ class ComputeSimulatorDatabaseTest {
     @BeforeAll void setup()throws Exception {
         db=ComputeMysqlTestDatabase.create("12");var c=new HikariConfig();c.setJdbcUrl(db.businessUrl());c.setUsername(ComputeMysqlTestDatabase.username());c.setPassword(ComputeMysqlTestDatabase.password());c.setMaximumPoolSize(6);pool=new HikariDataSource(c);
         j=new JdbcTemplate(pool);store=new ComputeDatabase.Store(j,new ComputeDatabase.Endpoint("test",3306,db.businessUrl()));
-        var migration=Flyway.configure().dataSource(pool).locations("classpath:db/a800-compute").load();assertEquals(1,migration.migrate().migrationsExecuted);assertEquals(0,migration.migrate().migrationsExecuted);
+        var migration=Flyway.configure().dataSource(pool).locations("classpath:db/a800-compute").target("13").load();assertEquals(1,migration.migrate().migrationsExecuted);assertEquals(0,migration.migrate().migrationsExecuted);
         assertEquals(44,j.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name<>'flyway_schema_history'",Integer.class));
         sim=new ComputeSimulatorService(store,json,settings,events,clock);adapter=new ComputeSimulatorExecutor(sim,settings);actions=new ComputeActionService(store,json,List.of(adapter),30);
         assertThrows(BizException.class,()->sim.state("a800-demo"));baseline=sim.initialize("a800-demo").toString();
