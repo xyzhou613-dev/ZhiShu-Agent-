@@ -15,6 +15,11 @@ const routes = [
     redirect: '/architecture',
     children: [
       {
+        path: 'compute', name: 'compute',
+        component: () => import('../views/compute/index.vue'),
+        meta: { title: '算力工作台', subtitle: '单卡申请 · 队列 · 执行与回收' }
+      },
+      {
         path: 'architecture',
         name: 'architecture',
         component: () => import('../views/architecture/index.vue'),

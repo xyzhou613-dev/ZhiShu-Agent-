@@ -9,6 +9,7 @@
         </div>
       </div>
       <el-menu :default-active="activeMenu" router class="bm-menu">
+        <el-menu-item v-if="computeMode" index="/compute"><el-icon><Platform /></el-icon><span>算力工作台</span></el-menu-item>
         <el-menu-item index="/architecture">
           <el-icon><Platform /></el-icon>
           <span>架构全貌</span>
@@ -226,6 +227,13 @@ import {
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const computeMode = ref(false)
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/compute/runtime', { headers: { Authorization: `Bearer ${userStore.token}` } })
+    if (response.ok) computeMode.value = (await response.json()).code === 0
+  } catch { /* 算力菜单仅在该模块可用时展示。 */ }
+})
 const activeMenu = computed(() => route.path)
 const avatarText = computed(() => (userStore.user?.displayName || '用').charAt(0))
 
