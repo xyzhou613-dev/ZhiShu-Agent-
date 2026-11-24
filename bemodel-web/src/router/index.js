@@ -17,7 +17,7 @@ const routes = [
       {
         path: 'compute', name: 'compute',
         component: () => import('../views/compute/index.vue'),
-        meta: { title: '算力工作台', subtitle: '单卡申请 · 队列 · 执行与回收' }
+        meta: { title: '算力工作台', subtitle: '算力申请 · 抢占 · 回收与恢复' }
       },
       {
         path: 'architecture',
