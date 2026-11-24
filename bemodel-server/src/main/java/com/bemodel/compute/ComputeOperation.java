@@ -25,6 +25,7 @@ enum ComputeOperation {
     JOB_RETRY("重试失败作业", Kind.WRITE, "ADMIN", "EDITOR"),
     JOB_STOP("停止运行作业", Kind.WRITE, "ADMIN", "EDITOR"),
     WORKFLOW_QUERY("查询流程进度", Kind.READ, "ADMIN", "EDITOR", "REVIEWER", "VIEWER"),
+    WORKFLOW_ADVANCE("创建及推进单卡流程", Kind.WRITE, "ADMIN", "EDITOR"),
 
     ACTION_RESULT_QUERY("查询动作回执", Kind.READ, "ADMIN", "EDITOR"),
     ACTION_RECONCILE("核对未知动作结果", Kind.WRITE, "ADMIN", "EDITOR"),

@@ -28,6 +28,9 @@ compute:
   simulator:
     # 默认关闭；开启后仍须通过管理员接口显式初始化节点，不会在启动时刷新观测或执行动作。
     enabled: ${COMPUTE_SIMULATOR_ENABLED:false}
+  workflow:
+    enabled: ${COMPUTE_WORKFLOW_ENABLED:false}
+    poll-delay-ms: 5000
   queue:
     # 队列自动重评默认关闭；资源变化事件仍可在同进程内触发一次重评。
     recheck-enabled: ${COMPUTE_QUEUE_RECHECK_ENABLED:false}

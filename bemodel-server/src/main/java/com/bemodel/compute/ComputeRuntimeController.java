@@ -25,13 +25,15 @@ final class ComputeRuntimeController {
     record RuntimeInfo(String version, String mode, boolean simulation, String nodeKey, String demoDataset,
                        boolean medicalApisEnabled, List<String> isolatedMedicalPaths, Schedulers schedulers,
                        Databases databases, boolean anonymousWritesAllowed, boolean agentWritesAllowed,
-                       List<String> restartProtection, String realAdapters, boolean simulatorEnabled, boolean authorizesExecution) {}
+                       List<String> restartProtection, String realAdapters, boolean simulatorEnabled, boolean workflowEnabled, boolean authorizesExecution) {}
 
     private final ComputeRuntimeSettings settings;
     private final ComputeDatabase.Store store;
     private final String platformUrl;
     @Value("${compute.simulator.enabled:false}")
     private boolean simulatorEnabled;
+    @Value("${compute.workflow.enabled:false}")
+    private boolean workflowEnabled;
 
     ComputeRuntimeController(ComputeRuntimeSettings settings, ComputeDatabase.Store store,
                              @Value("${spring.datasource.url:}") String platformUrl) {
@@ -54,7 +56,7 @@ final class ComputeRuntimeController {
                 false, false,
                 List.of("FLYWAY_VERSIONED_ONLY", "EXISTING_ADMIN_PASSWORD_KEPT", "DATASOURCE_REGISTRATION_KEPT",
                         "DEMO_FIXTURE_INSERTED_ONCE"),
-                "N-16 NOT_CONNECTED", simulatorEnabled, false));
+                "N-16 NOT_CONNECTED", simulatorEnabled, workflowEnabled, false));
     }
 
     private static String schema(String jdbcUrl) {

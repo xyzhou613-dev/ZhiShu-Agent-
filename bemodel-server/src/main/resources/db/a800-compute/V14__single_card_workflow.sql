@@ -1,0 +1,9 @@
+ALTER TABLE workflow_run
+ ADD COLUMN managed BOOLEAN NOT NULL DEFAULT FALSE,
+ ADD COLUMN managed_job_id BIGINT GENERATED ALWAYS AS (CASE WHEN managed THEN job_id END) STORED,
+ ADD UNIQUE KEY uk_managed_job (managed_job_id),
+ ADD COLUMN desired_state VARCHAR(16) NOT NULL DEFAULT 'RUNNING',
+ ADD COLUMN lease_token VARCHAR(36),
+ ADD COLUMN lease_until DATETIME(6),
+ ADD COLUMN last_error VARCHAR(512),
+ ADD COLUMN end_reason VARCHAR(32);
